@@ -17,6 +17,7 @@ xml-rs = "0.2"
 quote = "0.3"
 lazy_static = "1.2.0"
 serde = { version = "1.0.101", optional = true, features = ["derive"] }
+prost-build = "0.7"
 
 [[bin]]
 name = "mavlink-dump"
@@ -34,7 +35,12 @@ byteorder = { version = "1.3.4", default-features = false }
 embedded-hal = { version = "0.2", optional = true }
 nb = { version = "0.1", optional = true }
 
+prost = "0.7"
+# Only necessary if using Protobuf well-known types:
+prost-types = "0.7"
+
 [features]
+"localtest" = ["common"]
 "ardupilotmega" = ["common", "icarous", "uavionix"]
 "asluav" = ["common"]
 "autoquad" = ["common"]
@@ -64,6 +70,7 @@ nb = { version = "0.1", optional = true }
     "ualberta",
     "uavionix",
     "icarous",
+    "localtest",
     "common",
 ]
 

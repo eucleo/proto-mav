@@ -1,7 +1,13 @@
 use crc_any::CRCu16;
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::default::Default;
+use std::ffi::{OsStr, OsString};
+use std::fs::File;
+use std::io;
 use std::io::{Read, Write};
+use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::u32;
 
 use xml::reader::{EventReader, XmlEvent};
@@ -59,9 +65,7 @@ impl MavProfile {
 
     /// Simple header comment
     fn emit_comments(&self) -> Ident {
-        Ident::from(format!(
-            "// This file was automatically generated, do not edit \n"
-        ))
+        Ident::from("// This file was automatically generated, do not edit \n".to_string())
     }
 
     /// Emit includes
@@ -173,7 +177,7 @@ impl MavProfile {
 
             use crate::{Message, error::*};
             #[allow(unused_imports)]
-            use crate::{#(#includes::*),*};
+            use crate::{#(mavlink::#includes::*),*};
 
             #[cfg(feature = "serde")]
             use serde::{Serialize, Deserialize};
@@ -205,15 +209,33 @@ impl MavProfile {
         }
     }
 
-    fn emit_mav_message(
+    fn emit_proto(
         &self,
-        enums: &Vec<Tokens>,
-        structs: &Vec<Tokens>,
-        includes: &Vec<Ident>,
-    ) -> Tokens {
-        let includes = includes.into_iter().map(|include| {
+        outf: &mut dyn Write,
+        profile: &MavProfile,
+        modules: &mut HashMap<String, MavProfile>,
+    ) -> io::Result<()> {
+        for inc in &self.includes {
+            let inc_name = to_module_name(&inc);
+            let mut inc_proto = PathBuf::from(&inc_name);
+            inc_proto.set_extension("proto");
+            writeln!(outf, "import \"{}\";", inc_proto.to_string_lossy())?;
+        }
+        for e in &self.enums {
+            writeln!(outf)?;
+            e.emit_proto(outf)?;
+        }
+        for message in &self.messages {
+            writeln!(outf)?;
+            message.emit_proto(outf, profile, modules)?;
+        }
+        Ok(())
+    }
+
+    fn emit_mav_message(&self, enums: &[Tokens], structs: &[Tokens], includes: &[Ident]) -> Tokens {
+        let includes = includes.iter().map(|include| {
             quote! {
-                #include(crate::#include::MavMessage)
+                #include(crate::mavlink::#include::MavMessage)
             }
         });
 
@@ -227,11 +249,11 @@ impl MavProfile {
         }
     }
 
-    fn emit_mav_message_from_includes(&self, includes: &Vec<Ident>) -> Tokens {
-        let froms = includes.into_iter().map(|include| {
+    fn emit_mav_message_from_includes(&self, includes: &[Ident]) -> Tokens {
+        let froms = includes.iter().map(|include| {
             quote! {
-                impl From<crate::#include::MavMessage> for MavMessage {
-                    fn from(message: crate::#include::MavMessage) -> Self {
+                impl From<crate::mavlink::#include::MavMessage> for MavMessage {
+                    fn from(message: crate::mavlink::#include::MavMessage) -> Self {
                         MavMessage::#include(message)
                     }
                 }
@@ -245,18 +267,18 @@ impl MavProfile {
 
     fn emit_mav_message_parse(
         &self,
-        enums: &Vec<Tokens>,
-        structs: &Vec<Tokens>,
-        ids: &Vec<Tokens>,
-        includes: &Vec<Ident>,
+        enums: &[Tokens],
+        structs: &[Tokens],
+        ids: &[Tokens],
+        includes: &[Ident],
     ) -> Tokens {
         let id_width = Ident::from("u32");
 
         // try parsing all included message variants if it doesn't land in the id
         // range for this message
-        let includes_branches = includes.into_iter().map(|i| {
+        let includes_branches = includes.iter().map(|i| {
             quote! {
-                if let Ok(msg) = crate::#i::MavMessage::parse(version, id, payload) {
+                if let Ok(msg) = crate::mavlink::#i::MavMessage::parse(version, id, payload) {
                     return Ok(MavMessage::#i(msg))
                 }
             }
@@ -265,7 +287,7 @@ impl MavProfile {
         quote! {
             fn parse(version: MavlinkVersion, id: #id_width, payload: &[u8]) -> Result<MavMessage, ParserError> {
                 match id {
-                    #(#ids => #structs::deser(version, payload).map(|s| MavMessage::#enums(s)),)*
+                    #(#ids => #structs::deser(version, payload).map(MavMessage::#enums),)*
                     _ => {
                         #(#includes_branches)*
                         Err(ParserError::UnknownMessage { id })
@@ -278,13 +300,13 @@ impl MavProfile {
     fn emit_mav_message_crc(
         &self,
         id_width: &Ident,
-        ids: &Vec<Tokens>,
-        crc: &Vec<Tokens>,
-        includes: &Vec<Ident>,
+        ids: &[Tokens],
+        crc: &[Tokens],
+        includes: &[Ident],
     ) -> Tokens {
-        let includes_branch = includes.into_iter().map(|include| {
+        let includes_branch = includes.iter().map(|include| {
             quote! {
-                match crate::#include::MavMessage::extra_crc(id) {
+                match crate::mavlink::#include::MavMessage::extra_crc(id) {
                     0 => {},
                     any => return any
                 }
@@ -305,7 +327,7 @@ impl MavProfile {
         }
     }
 
-    fn emit_mav_message_name(&self, enums: &Vec<Tokens>, includes: &Vec<Ident>) -> Tokens {
+    fn emit_mav_message_name(&self, enums: &[Tokens], includes: &[Ident]) -> Tokens {
         let enum_names = enums
             .iter()
             .map(|enum_name| {
@@ -324,12 +346,7 @@ impl MavProfile {
         }
     }
 
-    fn emit_mav_message_id(
-        &self,
-        enums: &Vec<Tokens>,
-        ids: &Vec<Tokens>,
-        includes: &Vec<Ident>,
-    ) -> Tokens {
+    fn emit_mav_message_id(&self, enums: &[Tokens], ids: &[Tokens], includes: &[Ident]) -> Tokens {
         let id_width = Ident::from("u32");
         quote! {
             fn message_id(&self) -> #id_width {
@@ -343,13 +360,13 @@ impl MavProfile {
 
     fn emit_mav_message_id_from_name(
         &self,
-        enums: &Vec<Tokens>,
-        ids: &Vec<Tokens>,
-        includes: &Vec<Ident>,
+        enums: &[Tokens],
+        ids: &[Tokens],
+        includes: &[Ident],
     ) -> Tokens {
-        let includes_branch = includes.into_iter().map(|include| {
+        let includes_branch = includes.iter().map(|include| {
             quote! {
-                match crate::#include::MavMessage::message_id_from_name(name) {
+                match crate::mavlink::#include::MavMessage::message_id_from_name(name) {
                     Ok(name) => return Ok(name),
                     Err(..) => {}
                 }
@@ -380,21 +397,22 @@ impl MavProfile {
 
     fn emit_mav_message_default_from_id(
         &self,
-        enums: &Vec<Tokens>,
-        ids: &Vec<Tokens>,
-        includes: &Vec<Ident>,
+        enums: &[Tokens],
+        ids: &[Tokens],
+        includes: &[Ident],
     ) -> Tokens {
         let data_name = enums
             .iter()
             .map(|enum_name| {
-                let name = Ident::from(format!("{}_DATA", enum_name));
+                //let name = Ident::from(format!("{}_DATA", enum_name));
+                let name = Ident::from(enum_name.as_str());
                 quote!(#name)
             })
             .collect::<Vec<Tokens>>();
 
-        let includes_branches = includes.into_iter().map(|include| {
+        let includes_branches = includes.iter().map(|include| {
             quote! {
-                if let Ok(msg) = crate::#include::MavMessage::default_message_from_id(id) {
+                if let Ok(msg) = crate::mavlink::#include::MavMessage::default_message_from_id(id) {
                     return Ok(MavMessage::#include(msg));
                 }
             }
@@ -407,19 +425,19 @@ impl MavProfile {
                     _ => {
                         #(#includes_branches)*
 
-                        return Err("Invalid message id.");
+                        Err("Invalid message id.")
                     }
                 }
             }
         }
     }
 
-    fn emit_mav_message_serialize(&self, enums: &Vec<Tokens>, includes: &Vec<Ident>) -> Tokens {
+    fn emit_mav_message_serialize(&self, enums: &[Tokens], includes: &[Ident]) -> Tokens {
         quote! {
             fn ser(&self) -> Vec<u8> {
-                match self {
-                    #(&MavMessage::#enums(ref body) => body.ser(),)*
-                    #(&MavMessage::#includes(ref msg) => msg.ser(),)*
+                match *self {
+                    #(MavMessage::#enums(ref body) => body.ser(),)*
+                    #(MavMessage::#includes(ref msg) => msg.ser(),)*
                 }
             }
         }
@@ -430,6 +448,7 @@ impl MavProfile {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct MavEnum {
     pub name: String,
+    pub raw_name: String,
     pub description: Option<String>,
     pub entries: Vec<MavEnumEntry>,
     /// If contains Some, the string represents the type witdh for bitflags
@@ -446,7 +465,11 @@ impl MavEnum {
         self.entries
             .iter()
             .map(|enum_entry| {
-                let name = Ident::from(enum_entry.name.clone());
+                let name = if self.bitfield.is_some() {
+                    Ident::from(enum_entry.name.to_uppercase())
+                } else {
+                    Ident::from(enum_entry.name.clone())
+                };
                 let value;
                 if !self.has_enum_values() {
                     value = Ident::from(cnt.to_string());
@@ -470,7 +493,12 @@ impl MavEnum {
 
     fn emit_rust(&self) -> Tokens {
         let defs = self.emit_defs();
-        let default = Ident::from(self.entries[0].name.clone());
+        //let default = Ident::from(self.entries[0].name.clone());
+        let default = if self.bitfield.is_some() {
+            Ident::from(self.entries[0].name.to_uppercase())
+        } else {
+            Ident::from(self.entries[0].name.clone())
+        };
         let enum_name = self.emit_name();
 
         let enum_def;
@@ -505,6 +533,75 @@ impl MavEnum {
             }
         }
     }
+
+    fn emit_proto(&self, outf: &mut dyn Write) -> io::Result<()> {
+        writeln!(outf, "enum {} {{", self.raw_name)?;
+        if let Some(description) = &self.description {
+            for d in description.split('\n') {
+                writeln!(outf, "// {}", d.trim())?;
+            }
+        }
+        let mut sorted = self.entries.clone();
+        sorted.sort_by(|a, b| {
+            if a.value.is_none() && b.value.is_none() {
+                return std::cmp::Ordering::Equal;
+            }
+            if a.value.is_none() {
+                return std::cmp::Ordering::Greater;
+            }
+            if b.value.is_none() {
+                return std::cmp::Ordering::Less;
+            }
+            if let (Some(a), Some(b)) = (a.value, b.value) {
+                a.cmp(&b)
+            } else {
+                std::cmp::Ordering::Equal
+            }
+        });
+        // In case we have an enum with a missing value.
+        let mut max_val: u32 = 0;
+        let mut has_zero = false;
+        for f in &sorted {
+            if let Some(a) = f.value {
+                if a == 0 {
+                    has_zero = true;
+                }
+                if a > max_val {
+                    max_val = a;
+                }
+            }
+        }
+        for (i, field) in sorted.iter().enumerate() {
+            if i == 0 && !has_zero && max_val != 0 {
+                // Do not have a 0 based enum field but protbuf requires it.
+                writeln!(
+                    outf,
+                    "  // Not used in MavLink, make protobuf happy.\n  {}_UNDEFINED = 0;",
+                    self.raw_name
+                )?;
+            }
+            if let Some(description) = &field.description {
+                for d in description.split('\n') {
+                    writeln!(outf, "  // {}", d)?;
+                }
+            }
+            writeln!(
+                outf,
+                "  {} = {};",
+                field.raw_name,
+                field.value.unwrap_or(max_val + i as u32)
+            )?;
+            if let Some(params) = &field.params {
+                writeln!(outf, "  // ***** START Params")?;
+                for p in params {
+                    writeln!(outf, "  // {}", p)?;
+                }
+                writeln!(outf, "  // ***** END Params")?;
+            }
+        }
+        writeln!(outf, "}}")?;
+        Ok(())
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Default)]
@@ -512,6 +609,7 @@ impl MavEnum {
 pub struct MavEnumEntry {
     pub value: Option<u32>,
     pub name: String,
+    pub raw_name: String,
     pub description: Option<String>,
     pub params: Option<Vec<String>>,
 }
@@ -521,6 +619,7 @@ pub struct MavEnumEntry {
 pub struct MavMessage {
     pub id: u32,
     pub name: String,
+    pub raw_name: String,
     pub description: Option<String>,
     pub fields: Vec<MavField>,
 }
@@ -529,7 +628,7 @@ impl MavMessage {
     /// Return Token of "MESSAGE_NAME_DATA
     /// for mavlink struct data
     fn emit_struct_name(&self) -> Tokens {
-        let name = Ident::from(format!("{}_DATA", self.name));
+        let name = Ident::from(self.name.clone());
         quote!(#name)
     }
 
@@ -588,7 +687,8 @@ impl MavMessage {
             .map(|f| f.rust_reader())
             .collect::<Vec<Tokens>>();
 
-        let encoded_len_name = Ident::from(format!("{}_DATA::ENCODED_LEN", self.name));
+        //let encoded_len_name = Ident::from(format!("{}_DATA::ENCODED_LEN", self.name));
+        let encoded_len_name = Ident::from(format!("{}::ENCODED_LEN", self.name));
 
         if deser_vars.is_empty() {
             // struct has no fields
@@ -596,6 +696,7 @@ impl MavMessage {
                 Ok(Self::default())
             }
         } else {
+            // Should look at getting rid of the #[allow... below but it is non-trivial.
             quote! {
                 let avail_len = _input.len();
 
@@ -610,9 +711,12 @@ impl MavMessage {
                     buf = BytesMut::from(&payload_buf[..]);
                 }
 
-                let mut _struct = Self::default();
-                #(#deser_vars)*
-                Ok(_struct)
+                #[allow(clippy::field_reassign_with_default)]
+                {
+                    let mut _struct = Self::default();
+                    #(#deser_vars)*
+                    Ok(_struct)
+                }
             }
         }
     }
@@ -651,6 +755,29 @@ impl MavMessage {
             }
         }
     }
+
+    fn emit_proto(
+        &self,
+        outf: &mut dyn Write,
+        profile: &MavProfile,
+        modules: &mut HashMap<String, MavProfile>,
+    ) -> io::Result<()> {
+        if let Some(description) = &self.description {
+            for d in description.split('\n') {
+                writeln!(outf, "// {}", d.trim())?;
+            }
+        }
+        writeln!(
+            outf,
+            "message {} {{  // MavLink id: {}",
+            self.raw_name, self.id
+        )?;
+        for (i, field) in self.fields.iter().enumerate() {
+            field.emit_proto(outf, i + 1, profile, modules)?;
+        }
+        writeln!(outf, "}}")?;
+        Ok(())
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Default)]
@@ -658,8 +785,10 @@ impl MavMessage {
 pub struct MavField {
     pub mavtype: MavType,
     pub name: String,
+    pub raw_name: String,
     pub description: Option<String>,
     pub enumtype: Option<String>,
+    pub raw_enumtype: Option<String>,
     pub display: Option<String>,
     pub is_extension: bool,
 }
@@ -713,7 +842,7 @@ impl MavField {
     /// Emit writer
     fn rust_writer(&self) -> Tokens {
         let mut name = "self.".to_string() + &self.name.clone();
-        if let Some(_) = &self.enumtype {
+        if self.enumtype.is_some() {
             if let Some(dsp) = &self.display {
                 // potentially a bitflag
                 if dsp == "bitmask" {
@@ -746,9 +875,7 @@ impl MavField {
             if let Some(dsp) = &self.display {
                 if dsp == "bitmask" {
                     // bitflags
-                    let tmp = self
-                        .mavtype
-                        .rust_reader(Ident::from("let tmp"), buf.clone());
+                    let tmp = self.mavtype.rust_reader(Ident::from("let tmp"), buf);
                     let enum_name_ident = Ident::from(enum_name.clone());
                     quote! {
                         #tmp
@@ -759,16 +886,11 @@ impl MavField {
                     panic!("Display option not implemented");
                 }
             } else {
-                match &self.mavtype {
-                    MavType::Array(_t, _size) => {
-                        return self.mavtype.rust_reader(name, buf);
-                    }
-                    _ => {}
+                if let MavType::Array(_t, _size) = &self.mavtype {
+                    return self.mavtype.rust_reader(name, buf);
                 }
                 // handle enum by FromPrimitive
-                let tmp = self
-                    .mavtype
-                    .rust_reader(Ident::from("let tmp"), buf.clone());
+                let tmp = self.mavtype.rust_reader(Ident::from("let tmp"), buf);
                 let val = Ident::from("from_".to_string() + &self.mavtype.rust_type());
                 quote!(
                     #tmp
@@ -779,6 +901,65 @@ impl MavField {
         } else {
             self.mavtype.rust_reader(name, buf)
         }
+    }
+
+    fn emit_proto(
+        &self,
+        outf: &mut dyn Write,
+        id: usize,
+        profile: &MavProfile,
+        modules: &mut HashMap<String, MavProfile>,
+    ) -> io::Result<()> {
+        fn has_enum(enums: &[MavEnum], name: &str) -> bool {
+            for e in enums {
+                if e.name == name {
+                    return true;
+                }
+            }
+            false
+        }
+        if let Some(description) = &self.description {
+            for d in description.split('\n') {
+                writeln!(outf, "  // {}", d.trim())?;
+            }
+        }
+        if let Some(enum_type) = &self.enumtype {
+            let raw_type = self.raw_enumtype.as_ref().unwrap();
+            // Got an enum, figure out if it is our enum or from an import.
+            if has_enum(&profile.enums, enum_type) {
+                writeln!(outf, "  {} {} = {};", raw_type, self.raw_name, id)?;
+            } else {
+                let mut found = false;
+                for inc in &profile.includes {
+                    let p = modules.get(inc).unwrap();
+                    if has_enum(&p.enums, enum_type) {
+                        found = true;
+                        let inc_mod = to_module_name(&inc);
+                        writeln!(
+                            outf,
+                            "  {}.{} {} = {};",
+                            inc_mod, raw_type, self.raw_name, id
+                        )?;
+                        break;
+                    }
+                }
+                if !found {
+                    return Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        format!("Failed to find enum {}", enum_type),
+                    ));
+                }
+            }
+        } else {
+            writeln!(
+                outf,
+                "  {} {} = {};",
+                self.mavtype.proto_type(),
+                self.raw_name,
+                id
+            )?;
+        }
+        Ok(())
     }
 }
 
@@ -824,8 +1005,8 @@ impl MavType {
             "Double" => Some(Double),
             "double" => Some(Double),
             _ => {
-                if s.ends_with("]") {
-                    let start = s.find("[")?;
+                if s.ends_with(']') {
+                    let start = s.find('[')?;
                     let size = s[start + 1..(s.len() - 1)].parse::<usize>().ok()?;
                     let mtype = MavType::parse_type(&s[0..start])?;
                     Some(Array(Box::new(mtype), size))
@@ -855,7 +1036,7 @@ impl MavType {
             Array(t, size) => {
                 if size > 32 {
                     // it is a vector
-                    let r = t.rust_reader(Ident::from("let val"), buf.clone());
+                    let r = t.rust_reader(Ident::from("let val"), buf);
                     quote! {
                         for _ in 0..#size {
                             #r
@@ -864,7 +1045,7 @@ impl MavType {
                     }
                 } else {
                     // handle as a slice
-                    let r = t.rust_reader(Ident::from("let val"), buf.clone());
+                    let r = t.rust_reader(Ident::from("let val"), buf);
                     quote! {
                         for idx in 0..#size {
                             #r
@@ -893,7 +1074,7 @@ impl MavType {
             Int64 => quote! {#buf.put_i64_le(#val);},
             Double => quote! {#buf.put_f64_le(#val);},
             Array(t, _size) => {
-                let w = t.rust_writer(Ident::from("*val"), buf.clone());
+                let w = t.rust_writer(Ident::from("*val"), buf);
                 quote! {
                     for val in &#val {
                         #w
@@ -975,6 +1156,34 @@ impl MavType {
         }
     }
 
+    /// Return protobuf equivalent of a given Mavtype
+    /// Used for generating proto message fields.
+    pub fn proto_type(&self) -> String {
+        use self::MavType::*;
+        // XXX protobuf seems to not have anything less then 32 bits...
+        match self.clone() {
+            UInt8 | UInt8MavlinkVersion => "uint32".into(),
+            Int8 => "uint32".into(),
+            Char => "uint32".into(), // XXX should this be string?
+            UInt16 => "uint32".into(),
+            Int16 => "int32".into(),
+            UInt32 => "uint32".into(),
+            Int32 => "int32".into(),
+            Float => "float".into(),
+            UInt64 => "uint64".into(),
+            Int64 => "int64".into(),
+            Double => "double".into(),
+            Array(t, _) => {
+                if let MavType::Char = *t {
+                    "string".into()
+                } else {
+                    format!("repeated {}", t.proto_type())
+                    //"bytes".into()
+                }
+            }
+        }
+    }
+
     /// Compare two MavTypes
     pub fn compare(&self, other: &Self) -> Ordering {
         let len = self.order_len();
@@ -1046,6 +1255,18 @@ fn is_valid_parent(p: Option<MavXmlElement>, s: MavXmlElement) -> bool {
     }
 }
 
+fn rusty_name(name: &str) -> String {
+    name.split('_')
+        .map(|x| x.to_lowercase())
+        .map(|x| {
+            let mut v: Vec<char> = x.chars().collect();
+            v[0] = v[0].to_uppercase().next().unwrap();
+            v.into_iter().collect()
+        })
+        .collect::<Vec<String>>()
+        .join("")
+}
+
 pub fn parse_profile(file: &mut dyn Read) -> MavProfile {
     let mut stack: Vec<MavXmlElement> = vec![];
 
@@ -1081,13 +1302,8 @@ pub fn parse_profile(file: &mut dyn Read) -> MavProfile {
                     Some(kind) => kind,
                 };
 
-                if !is_valid_parent(
-                    match stack.last().clone() {
-                        Some(arg) => Some(arg.clone()),
-                        None => None,
-                    },
-                    id.clone(),
-                ) {
+                //
+                if !is_valid_parent(stack.last().copied(), id) {
                     panic!("not valid parent {:?} of {:?}", stack.last(), id);
                 }
 
@@ -1121,28 +1337,30 @@ pub fn parse_profile(file: &mut dyn Read) -> MavProfile {
 
                 for attr in attrs {
                     match stack.last() {
-                        Some(&MavXmlElement::Enum) => match attr.name.local_name.clone().as_ref() {
-                            "name" => {
-                                mavenum.name = attr
-                                    .value
-                                    .clone()
-                                    .split("_")
-                                    .map(|x| x.to_lowercase())
-                                    .map(|x| {
-                                        let mut v: Vec<char> = x.chars().collect();
-                                        v[0] = v[0].to_uppercase().nth(0).unwrap();
-                                        v.into_iter().collect()
-                                    })
-                                    .collect::<Vec<String>>()
-                                    .join("");
-                                //mavenum.name = attr.value.clone();
+                        Some(&MavXmlElement::Enum) => {
+                            if attr.name.local_name == "name" {
+                                mavenum.raw_name = attr.value.clone();
+                                mavenum.name = rusty_name(&attr.value);
                             }
-                            _ => (),
-                        },
+                        }
                         Some(&MavXmlElement::Entry) => {
                             match attr.name.local_name.clone().as_ref() {
                                 "name" => {
-                                    entry.name = attr.value.clone();
+                                    entry.raw_name = attr.value.clone();
+                                    let name = rusty_name(&attr.value);
+                                    entry.name = if let Some(n) = name.strip_prefix(&mavenum.name) {
+                                        if let Some(ch) = n.chars().next() {
+                                            if ch.is_alphabetic() {
+                                                n.to_string()
+                                            } else {
+                                                name
+                                            }
+                                        } else {
+                                            name
+                                        }
+                                    } else {
+                                        name
+                                    }
                                 }
                                 "value" => {
                                     // Deal with hexadecimal numbers
@@ -1164,20 +1382,8 @@ pub fn parse_profile(file: &mut dyn Read) -> MavProfile {
                         Some(&MavXmlElement::Message) => {
                             match attr.name.local_name.clone().as_ref() {
                                 "name" => {
-                                    /*message.name = attr
-                                    .value
-                                    .clone()
-                                    .split("_")
-                                    .map(|x| x.to_lowercase())
-                                    .map(|x| {
-                                        let mut v: Vec<char> = x.chars().collect();
-                                        v[0] = v[0].to_uppercase().nth(0).unwrap();
-                                        v.into_iter().collect()
-                                    })
-                                    .collect::<Vec<String>>()
-                                    .join("");
-                                    */
-                                    message.name = attr.value.clone();
+                                    message.raw_name = attr.value.clone();
+                                    message.name = rusty_name(&attr.value);
                                 }
                                 "id" => {
                                     //message.id = attr.value.parse::<u8>().unwrap();
@@ -1189,6 +1395,7 @@ pub fn parse_profile(file: &mut dyn Read) -> MavProfile {
                         Some(&MavXmlElement::Field) => {
                             match attr.name.local_name.clone().as_ref() {
                                 "name" => {
+                                    field.raw_name = attr.value.clone();
                                     field.name = attr.value.clone();
                                     if field.name == "type" {
                                         field.name = "mavtype".to_string();
@@ -1198,20 +1405,8 @@ pub fn parse_profile(file: &mut dyn Read) -> MavProfile {
                                     field.mavtype = MavType::parse_type(&attr.value).unwrap();
                                 }
                                 "enum" => {
-                                    field.enumtype = Some(
-                                        attr.value
-                                            .clone()
-                                            .split("_")
-                                            .map(|x| x.to_lowercase())
-                                            .map(|x| {
-                                                let mut v: Vec<char> = x.chars().collect();
-                                                v[0] = v[0].to_uppercase().nth(0).unwrap();
-                                                v.into_iter().collect()
-                                            })
-                                            .collect::<Vec<String>>()
-                                            .join(""),
-                                    );
-                                    //field.enumtype = Some(attr.value.clone());
+                                    field.raw_enumtype = Some(attr.value.clone());
+                                    field.enumtype = Some(rusty_name(&attr.value));
                                 }
                                 "display" => {
                                     field.display = Some(attr.value);
@@ -1220,14 +1415,11 @@ pub fn parse_profile(file: &mut dyn Read) -> MavProfile {
                             }
                         }
                         Some(&MavXmlElement::Param) => {
-                            if let None = entry.params {
+                            if entry.params.is_none() {
                                 entry.params = Some(vec![]);
                             }
-                            match attr.name.local_name.clone().as_ref() {
-                                "index" => {
-                                    paramid = Some(attr.value.parse::<usize>().unwrap());
-                                }
-                                _ => (),
+                            if attr.name.local_name.clone() == "index" {
+                                paramid = Some(attr.value.parse::<usize>().unwrap());
                             }
                         }
                         _ => (),
@@ -1238,16 +1430,16 @@ pub fn parse_profile(file: &mut dyn Read) -> MavProfile {
                 use self::MavXmlElement::*;
                 match (stack.last(), stack.get(stack.len() - 2)) {
                     (Some(&Description), Some(&Message)) => {
-                        message.description = Some(s.replace("\n", " "));
+                        message.description = Some(s.replace("\t", "    "));
                     }
                     (Some(&Field), Some(&Message)) => {
-                        field.description = Some(s.replace("\n", " "));
+                        field.description = Some(s.replace("\t", "    "));
                     }
                     (Some(&Description), Some(&Enum)) => {
-                        mavenum.description = Some(s.replace("\n", " "));
+                        mavenum.description = Some(s.replace("\t", "    "));
                     }
                     (Some(&Description), Some(&Entry)) => {
-                        entry.description = Some(s.replace("\n", " "));
+                        entry.description = Some(s.replace("\t", "    "));
                     }
                     (Some(&Param), Some(&Entry)) => {
                         if let Some(ref mut params) = entry.params {
@@ -1313,7 +1505,6 @@ pub fn parse_profile(file: &mut dyn Read) -> MavProfile {
                     _ => (),
                 }
                 stack.pop();
-                // println!("{}-{}", indent(depth), name);
             }
             Err(e) => {
                 eprintln!("Error: {}", e);
@@ -1327,14 +1518,104 @@ pub fn parse_profile(file: &mut dyn Read) -> MavProfile {
     profile.update_enums()
 }
 
+fn merge_enums(profile: &mut MavProfile, modules: &HashMap<String, MavProfile>) {
+    fn enum_contains(enums: &[MavEnumEntry], val: u32) -> bool {
+        for e in enums {
+            if let Some(ev) = e.value {
+                if ev == val {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+    let mut missing: Vec<MavEnumEntry> = Vec::new();
+    for enum_val in &mut profile.enums {
+        for inc in &profile.includes {
+            for e2 in &modules
+                .get(inc)
+                .unwrap_or_else(|| panic!("Module {} not loaded!", inc))
+                .enums
+            {
+                if enum_val.name == e2.name {
+                    missing.append(
+                        &mut e2
+                            .entries
+                            .iter()
+                            .filter(|e| !enum_contains(&enum_val.entries, e.value.unwrap_or(0)))
+                            .cloned()
+                            .collect(),
+                    )
+                }
+            }
+        }
+        enum_val.entries.append(&mut missing);
+    }
+}
+
 /// Generate protobuf represenation of mavlink message set
 /// Generate rust representation of mavlink message set with appropriate conversion methods
-pub fn generate<R: Read, W: Write>(input: &mut R, output_rust: &mut W) {
-    let profile = parse_profile(input);
+pub fn generate(
+    definitions_dir: &Path,
+    definition_file: &OsStr,
+    out_dir: &str,
+    modules: &mut HashMap<String, MavProfile>,
+) {
+    let module_name = to_module_name(&definition_file);
+    if modules.contains_key(&module_name) {
+        return;
+    }
+    let mut definition_rs = PathBuf::from(&module_name);
+    definition_rs.set_extension("rs");
+    let mut definition_proto = PathBuf::from(&module_name);
+    definition_proto.set_extension("proto");
+
+    let in_path = Path::new(&definitions_dir).join(&definition_file);
+    let mut inf = File::open(&in_path).unwrap();
+
+    let dest_path = Path::new(&out_dir)
+        .join("src")
+        .join("mavlink")
+        .join(definition_rs);
+    let outf = File::create(&dest_path).unwrap();
+
+    let mut proto_outf = {
+        let dest_path = Path::new(&out_dir).join(definition_proto);
+        File::create(&dest_path).unwrap()
+    };
+
+    let mut profile = parse_profile(&mut inf);
+    modules.insert(
+        definition_file.to_string_lossy().to_string(),
+        profile.clone(),
+    );
+    for inc in &profile.includes {
+        let inc: OsString = inc.into();
+        generate(definitions_dir, &inc, out_dir, modules);
+    }
+    merge_enums(&mut profile, modules);
+
+    // proto file
+    write!(proto_outf, "syntax = \"proto3\";\n\n").unwrap();
+    write!(proto_outf, "package {};\n\n", module_name).unwrap();
+    profile
+        .emit_proto(&mut proto_outf, &profile, modules)
+        .unwrap();
 
     // rust file
     let rust_tokens = profile.emit_rust();
-    writeln!(output_rust, "{}", rust_tokens).unwrap();
+    writeln!(&outf, "{}", rust_tokens).unwrap();
+    match Command::new("rustfmt")
+        .arg(dest_path.as_os_str())
+        .current_dir(&out_dir)
+        .status()
+    {
+        Ok(_) => (),
+        Err(error) => eprintln!("{}", error),
+    }
+
+    // Re-run build if definition file changes
+    println!("cargo:rerun-if-changed={}", in_path.to_string_lossy());
 }
 
 /// CRC operates over names of the message and names of its fields
@@ -1421,11 +1702,8 @@ impl MavXmlFilter {
                             }
                             Some(kind) => kind,
                         };
-                        match id {
-                            MavXmlElement::Extensions => {
-                                self.extension_filter.is_in = true;
-                            }
-                            _ => {}
+                        if id == MavXmlElement::Extensions {
+                            self.extension_filter.is_in = true;
                         }
                     }
                     XmlEvent::EndElement { name } => {
@@ -1436,16 +1714,13 @@ impl MavXmlFilter {
                             Some(kind) => kind,
                         };
 
-                        match id {
-                            MavXmlElement::Message => {
-                                self.extension_filter.is_in = false;
-                            }
-                            _ => {}
+                        if id == MavXmlElement::Message {
+                            self.extension_filter.is_in = false;
                         }
                     }
                     _ => {}
                 }
-                return !self.extension_filter.is_in;
+                !self.extension_filter.is_in
             }
             Err(error) => panic!("Failed to filter XML: {}", error),
         }

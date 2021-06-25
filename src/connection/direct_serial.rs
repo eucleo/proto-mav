@@ -12,7 +12,7 @@ use crate::error::{MessageReadError, MessageWriteError};
 /// Serial MAVLINK connection
 
 pub fn open(settings: &str) -> io::Result<SerialConnection> {
-    let settings_toks: Vec<&str> = settings.split(":").collect();
+    let settings_toks: Vec<&str> = settings.split(':').collect();
     if settings_toks.len() < 2 {
         return Err(io::Error::new(
             io::ErrorKind::AddrNotAvailable,

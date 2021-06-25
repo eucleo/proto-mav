@@ -56,7 +56,7 @@ extern crate num_traits;
 use crc_any::CRCu16;
 
 // include generate definitions
-include!(concat!(env!("OUT_DIR"), "/mod.rs"));
+include!(concat!(env!("OUT_DIR"), "/src/mod.rs"));
 
 pub mod error;
 
@@ -142,12 +142,12 @@ impl<M: Message> MavFrame<M> {
 
     /// Serialize MavFrame into a vector, so it can be sent over a socket, for example.
     pub fn ser(&self) -> Vec<u8> {
-        let mut v = vec![];
-
         // serialize header
-        v.push(self.header.system_id);
-        v.push(self.header.component_id);
-        v.push(self.header.sequence);
+        let mut v = vec![
+            self.header.system_id,
+            self.header.component_id,
+            self.header.sequence,
+        ];
 
         // message id
         match self.protocol_version {
