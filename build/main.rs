@@ -6,6 +6,8 @@ extern crate xml;
 
 mod binder;
 mod parser;
+mod mavlink;
+mod proto;
 mod util;
 
 use crate::util::to_module_name;
