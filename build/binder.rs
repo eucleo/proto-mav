@@ -6,10 +6,6 @@ pub fn generate<W: Write>(modules: &[String], out: &mut W) {
         let module_ident = Ident::from(module.clone());
 
         quote! {
-            #[allow(non_camel_case_types)]
-            #[allow(non_snake_case)]
-            #[allow(unused_variables)]
-            #[allow(unused_mut)]
             #[cfg(feature = #module)]
             pub mod #module_ident;
         }

@@ -5,8 +5,8 @@ extern crate quote;
 extern crate xml;
 
 mod binder;
-mod parser;
 mod mavlink;
+mod parser;
 mod proto;
 mod util;
 
@@ -138,7 +138,7 @@ pub fn main() {
         let mut outf = File::create(&dest_path).unwrap();
 
         // generate code
-        binder::generate_bare(&modules, &mut outf);
+        binder::generate(&modules, &mut outf);
 
         // format code
         match Command::new("rustfmt")

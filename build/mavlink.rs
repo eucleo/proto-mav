@@ -1,7 +1,43 @@
+use crc_any::CRCu16;
 use quote::{Ident, Tokens};
 
-use crate::util::to_module_name;
 use crate::parser::*;
+use crate::util::to_module_name;
+
+/// CRC operates over names of the message and names of its fields
+/// Hence we have to preserve the original uppercase names delimited with an underscore
+/// For field names, we replace "type" with "mavtype" to make it rust compatible (this is
+/// needed for generating sensible rust code), but for calculating crc function we have to
+/// use the original name "type"
+fn extra_crc(msg: &MavMessage) -> u8 {
+    // calculate a 8-bit checksum of the key fields of a message, so we
+    // can detect incompatible XML changes
+    let mut crc = CRCu16::crc16mcrf4cc();
+
+    crc.digest(msg.name.as_bytes());
+    crc.digest(" ".as_bytes());
+
+    let mut f = msg.fields.clone();
+    // only mavlink 1 fields should be part of the extra_crc
+    f.retain(|f| !f.is_extension);
+    f.sort_by(|a, b| a.mavtype.compare(&b.mavtype));
+    for field in &f {
+        crc.digest(field.mavtype.primitive_type().as_bytes());
+        crc.digest(" ".as_bytes());
+        if field.name == "mavtype" {
+            crc.digest("type".as_bytes());
+        } else {
+            crc.digest(field.name.as_bytes());
+        }
+        crc.digest(" ".as_bytes());
+        if let MavType::Array(_, size) = field.mavtype {
+            crc.digest(&[size as u8]);
+        }
+    }
+
+    let crcval = crc.get_crc();
+    ((crcval & 0xFF) ^ (crcval >> 8)) as u8
+}
 
 impl MavProfile {
     /// Simple header comment
@@ -152,8 +188,9 @@ impl MavProfile {
 
     fn emit_mav_message(&self, enums: &[Tokens], structs: &[Tokens], includes: &[Ident]) -> Tokens {
         let includes = includes.iter().map(|include| {
+            let include_rusty = Ident::from(rusty_name(&include.to_string()));
             quote! {
-                #include(crate::mavlink::#include::MavMessage)
+                #include_rusty(crate::mavlink::#include::MavMessage)
             }
         });
 
@@ -169,10 +206,11 @@ impl MavProfile {
 
     fn emit_mav_message_from_includes(&self, includes: &[Ident]) -> Tokens {
         let froms = includes.iter().map(|include| {
+            let include_rusty = Ident::from(rusty_name(&include.to_string()));
             quote! {
                 impl From<crate::mavlink::#include::MavMessage> for MavMessage {
                     fn from(message: crate::mavlink::#include::MavMessage) -> Self {
-                        MavMessage::#include(message)
+                        MavMessage::#include_rusty(message)
                     }
                 }
             }
@@ -194,10 +232,11 @@ impl MavProfile {
 
         // try parsing all included message variants if it doesn't land in the id
         // range for this message
-        let includes_branches = includes.iter().map(|i| {
+        let includes_branches = includes.iter().map(|include| {
+            let include_rusty = Ident::from(rusty_name(&include.to_string()));
             quote! {
-                if let Ok(msg) = crate::mavlink::#i::MavMessage::parse(version, id, payload) {
-                    return Ok(MavMessage::#i(msg))
+                if let Ok(msg) = crate::mavlink::#include::MavMessage::parse(version, id, payload) {
+                    return Ok(MavMessage::#include_rusty(msg))
                 }
             }
         });
@@ -254,6 +293,10 @@ impl MavProfile {
             })
             .collect::<Vec<Tokens>>();
 
+        let includes = includes
+            .iter()
+            .map(|include| Ident::from(rusty_name(&include.to_string())));
+
         quote! {
             fn message_name(&self) -> &'static str {
                 match self {
@@ -266,6 +309,10 @@ impl MavProfile {
 
     fn emit_mav_message_id(&self, enums: &[Tokens], ids: &[Tokens], includes: &[Ident]) -> Tokens {
         let id_width = Ident::from("u32");
+        let includes = includes
+            .iter()
+            .map(|include| Ident::from(rusty_name(&include.to_string())));
+
         quote! {
             fn message_id(&self) -> #id_width {
                 match self {
@@ -329,9 +376,10 @@ impl MavProfile {
             .collect::<Vec<Tokens>>();
 
         let includes_branches = includes.iter().map(|include| {
+            let include_rusty = Ident::from(rusty_name(&include.to_string()));
             quote! {
                 if let Ok(msg) = crate::mavlink::#include::MavMessage::default_message_from_id(id) {
-                    return Ok(MavMessage::#include(msg));
+                    return Ok(MavMessage::#include_rusty(msg));
                 }
             }
         });
@@ -351,6 +399,10 @@ impl MavProfile {
     }
 
     fn emit_mav_message_serialize(&self, enums: &[Tokens], includes: &[Ident]) -> Tokens {
+        let includes = includes
+            .iter()
+            .map(|include| Ident::from(rusty_name(&include.to_string())));
+
         quote! {
             fn ser(&self) -> Vec<u8> {
                 match *self {
@@ -563,7 +615,7 @@ impl MavMessage {
             impl #msg_name {
                 pub const ENCODED_LEN: usize = #msg_encoded_len;
 
-                pub fn deser(version: MavlinkVersion, _input: &[u8]) -> Result<Self, ParserError> {
+                pub fn deser(_version: MavlinkVersion, _input: &[u8]) -> Result<Self, ParserError> {
                     #deser_vars
                 }
 
@@ -573,7 +625,6 @@ impl MavMessage {
             }
         }
     }
-
 }
 
 impl MavField {
@@ -685,7 +736,6 @@ impl MavField {
             self.mavtype.rust_reader(name, buf)
         }
     }
-
 }
 
 impl MavType {
@@ -756,4 +806,3 @@ impl MavType {
         }
     }
 }
-

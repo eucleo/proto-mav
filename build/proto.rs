@@ -4,8 +4,8 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::u32;
 
-use crate::util::to_module_name;
 use crate::parser::*;
+use crate::util::to_module_name;
 
 impl MavProfile {
     pub fn emit_proto(
@@ -31,7 +31,6 @@ impl MavProfile {
         Ok(())
     }
 }
-
 
 impl MavEnum {
     fn emit_proto(&self, outf: &mut dyn Write) -> io::Result<()> {

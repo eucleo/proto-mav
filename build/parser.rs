@@ -1,4 +1,3 @@
-use crc_any::CRCu16;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::default::Default;
@@ -12,7 +11,6 @@ use std::u32;
 use xml::reader::{EventReader, XmlEvent};
 
 use crate::util::to_module_name;
-//use crate::mavlink::*;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -61,7 +59,6 @@ impl MavProfile {
     //        self
     //    }
 }
-
 
 #[derive(Debug, PartialEq, Clone, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -304,7 +301,7 @@ fn is_valid_parent(p: Option<MavXmlElement>, s: MavXmlElement) -> bool {
     }
 }
 
-fn rusty_name(name: &str) -> String {
+pub fn rusty_name(name: &str) -> String {
     name.split('_')
         .map(|x| x.to_lowercase())
         .map(|x| {
@@ -445,7 +442,7 @@ pub fn parse_profile(file: &mut dyn Read) -> MavProfile {
                             match attr.name.local_name.clone().as_ref() {
                                 "name" => {
                                     field.raw_name = attr.value.clone();
-                                    field.name = attr.value.clone();
+                                    field.name = attr.value.to_lowercase();
                                     if field.name == "type" {
                                         field.name = "mavtype".to_string();
                                     }
@@ -665,41 +662,6 @@ pub fn generate(
 
     // Re-run build if definition file changes
     println!("cargo:rerun-if-changed={}", in_path.to_string_lossy());
-}
-
-/// CRC operates over names of the message and names of its fields
-/// Hence we have to preserve the original uppercase names delimited with an underscore
-/// For field names, we replace "type" with "mavtype" to make it rust compatible (this is
-/// needed for generating sensible rust code), but for calculating crc function we have to
-/// use the original name "type"
-pub fn extra_crc(msg: &MavMessage) -> u8 {
-    // calculate a 8-bit checksum of the key fields of a message, so we
-    // can detect incompatible XML changes
-    let mut crc = CRCu16::crc16mcrf4cc();
-
-    crc.digest(msg.name.as_bytes());
-    crc.digest(" ".as_bytes());
-
-    let mut f = msg.fields.clone();
-    // only mavlink 1 fields should be part of the extra_crc
-    f.retain(|f| !f.is_extension);
-    f.sort_by(|a, b| a.mavtype.compare(&b.mavtype));
-    for field in &f {
-        crc.digest(field.mavtype.primitive_type().as_bytes());
-        crc.digest(" ".as_bytes());
-        if field.name == "mavtype" {
-            crc.digest("type".as_bytes());
-        } else {
-            crc.digest(field.name.as_bytes());
-        }
-        crc.digest(" ".as_bytes());
-        if let MavType::Array(_, size) = field.mavtype {
-            crc.digest(&[size as u8]);
-        }
-    }
-
-    let crcval = crc.get_crc();
-    ((crcval & 0xFF) ^ (crcval >> 8)) as u8
 }
 
 #[cfg(not(feature = "emit-extensions"))]
