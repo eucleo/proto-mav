@@ -1,0 +1,68 @@
+<?xml version="1.0"?>
+<mavlink>
+  <include>common.xml</include>
+  <dialect>5</dialect>
+  <enums>
+    <enum name="MAV_NO_VALS">
+      <entry name="MAV_TYPE_ONE_0">
+        <description>uno!</description>
+      </entry>
+      <entry name="MAV_TYPE_TWO_1">
+        <description>duo!</description>
+      </entry>
+      <entry name="MAV_TYPE_THREE_2">
+        <description>tres!</description>
+      </entry>
+    </enum>
+    <enum name="MAV_NO_VAL_100">
+      <entry name="MAV_TYPE_ONE_101">
+        <description>uno!</description>
+      </entry>
+      <entry value="100" name="MAV_TYPE_HUNDRED">
+        <description>sparta!</description>
+      </entry>
+      <entry name="MAV_TYPE_THREE_102">
+        <description>tres!</description>
+      </entry>
+    </enum>
+    <enum name="MAV_TYPE">
+      <entry value="100" name="MAV_TYPE_UFO">
+        <description>aliens!</description>
+      </entry>
+    </enum>
+   	<!-- <enum name="MAV_CMD">
+      <entry value="55211" name="MAV_CMD_ABDUCT">
+        <description>Grab a humon.</description>
+        <param index="1">Gripper number (a number from 1 to max number of grippers on the vehicle).</param>
+        <param index="2">Gripper action (0=release, 1=grab. See GRIPPER_ACTIONS enum).</param>
+        <param index="3">Empty.</param>
+        <param index="4">Empty.</param>
+        <param index="5">Empty.</param>
+        <param index="6">Empty.</param>
+        <param index="7">Empty.</param>
+      </entry>
+      <entry value="55212" name="MAV_CMD_ANAL_PROBE">
+        <description>Probe time.</description>
+        <param index="1">Enable (1: enable, 0:disable).</param>
+        <param index="2">Empty.</param>
+        <param index="3">Empty.</param>
+        <param index="4">Empty.</param>
+        <param index="5">Empty.</param>
+        <param index="6">Empty.</param>
+        <param index="7">Empty.</param>
+      </entry>
+    </enum>-->
+  </enums>
+  <messages>
+    <message id="55000" name="HEARTBEAT2">
+      <description>The heartbeat message shows that a system or component is present and responding. The type and autopilot fields (along with the message component id), allow the receiving system to treat further messages from this system appropriately (e.g. by laying out the user interface based on the autopilot). This microservice is documented at https://mavlink.io/en/services/heartbeat.html</description>
+      <field type="uint8_t" name="type" enum="MAV_TYPE">Vehicle or component type. For a flight controller component the vehicle type (quadrotor, helicopter, etc.). For other components the component type (e.g. camera, gimbal, etc.). This should be used in preference to component id for identifying the component type.</field>
+      <field type="uint8_t" name="autopilot" enum="MAV_AUTOPILOT">Autopilot type / class. Use MAV_AUTOPILOT_INVALID for components that are not flight controllers.</field>
+      <field type="uint8_t" name="base_mode" enum="MAV_MODE_FLAG" display="bitmask">System mode bitmap.</field>
+      <field type="uint32_t[256]" name="custom_mode">A bitfield for use for autopilot-specific flags</field>
+      <field type="char[256]" name="string_test">A bitfield for use for autopilot-specific flags</field>
+      <field type="uint8_t" name="system_status" enum="MAV_STATE">System status flag.</field>
+      <field type="uint8_t_mavlink_version" name="mavlink_version">MAVLink version, not writable by user, gets added by protocol because of magic data type: uint8_t_mavlink_version</field>
+    </message>
+  </messages>
+</mavlink>
