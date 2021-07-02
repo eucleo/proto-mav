@@ -3,7 +3,7 @@ mod test_shared;
 #[cfg(test)]
 #[cfg(all(feature = "std", feature = "tcp", feature = "common"))]
 mod test_tcp_connections {
-    use ::mavlink::*;
+    use proto_mav::*;
     use std::thread;
 
     /// Test whether we can send a message via TCP and receive it OK

@@ -1,4 +1,4 @@
-use ::mavlink::*;
+use proto_mav::*;
 
 #[allow(dead_code)]
 pub const COMMON_MSG_HEADER: MavHeader = MavHeader {

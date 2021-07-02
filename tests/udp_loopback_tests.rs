@@ -3,7 +3,7 @@ mod test_shared;
 #[cfg(test)]
 #[cfg(all(feature = "std", feature = "udp", feature = "common"))]
 mod test_udp_connections {
-    use ::mavlink::*;
+    use proto_mav::*;
     use std::thread;
 
     /// Test whether we can send a message via UDP and receive it OK

@@ -1,8 +1,8 @@
 #[cfg(test)]
 #[cfg(all(feature = "std", feature = "common"))]
 mod helper_tests {
-    use ::mavlink::mavlink::common::MavMessage;
-    use ::mavlink::Message;
+    use proto_mav::mavlink::common::MavMessage;
+    use proto_mav::Message;
 
     #[test]
     fn test_get_default_message_from_id() {

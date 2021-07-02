@@ -3,7 +3,7 @@ pub mod test_shared;
 #[cfg(test)]
 #[cfg(all(feature = "std", feature = "common"))]
 mod test_v1_encode_decode {
-    use ::mavlink::*;
+    use proto_mav::*;
 
     pub const HEARTBEAT_V1: &'static [u8] = &[
         MAV_STX, 0x09, 0xef, 0x01, 0x01, 0x00, 0x05, 0x00, 0x00, 0x00, 0x02, 0x03, 0x59, 0x03,
@@ -48,7 +48,7 @@ mod test_v1_encode_decode {
     #[test]
     #[cfg(not(feature = "emit-extensions"))]
     pub fn test_echo_servo_output_raw() {
-        use ::mavlink::Message;
+        use proto_mav::Message;
 
         let mut v = vec![];
         let send_msg = crate::test_shared::get_servo_output_raw_v1();

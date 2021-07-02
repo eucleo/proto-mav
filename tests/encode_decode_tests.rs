@@ -3,7 +3,7 @@ mod test_shared;
 #[cfg(test)]
 #[cfg(feature = "common")]
 mod test_encode_decode {
-    use ::mavlink::*;
+    use proto_mav::*;
 
     #[test]
     pub fn test_echo_heartbeat() {

@@ -3,7 +3,7 @@ mod test_shared;
 #[cfg(test)]
 #[cfg(all(feature = "std", feature = "common"))]
 mod test_v2_encode_decode {
-    use ::mavlink::*;
+    use proto_mav::*;
 
     pub const HEARTBEAT_V2: &'static [u8] = &[
         MAV_STX_V2, //magic

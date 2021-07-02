@@ -1,4 +1,4 @@
-use mavlink::error::MessageReadError;
+use proto_mav::{error::MessageReadError, *};
 #[cfg(feature = "std")]
 use std::env;
 #[cfg(feature = "std")]
@@ -23,19 +23,18 @@ fn main() {
     }
 
     // It's possible to change the mavlink dialect to be used in the connect call
-    let mut mavconn =
-        mavlink::connect::<mavlink::mavlink::ardupilotmega::MavMessage>(&args[1]).unwrap();
+    let mut mavconn = connect::<mavlink::ardupilotmega::MavMessage>(&args[1]).unwrap();
 
     // here as an example we force the protocol version to mavlink V1:
     // the default for this library is mavlink V2
-    mavconn.set_protocol_version(mavlink::MavlinkVersion::V1);
+    mavconn.set_protocol_version(MavlinkVersion::V1);
 
     let vehicle = Arc::new(mavconn);
     vehicle
-        .send(&mavlink::MavHeader::default(), &request_parameters().into())
+        .send(&MavHeader::default(), &request_parameters().into())
         .unwrap();
     vehicle
-        .send(&mavlink::MavHeader::default(), &request_stream().into())
+        .send(&MavHeader::default(), &request_stream().into())
         .unwrap();
 
     thread::spawn({
@@ -78,38 +77,34 @@ fn main() {
 /// If only common dialect is used, the `ardupilotmega::MavMessage::common` is not necessary,
 /// and the function could return only a simple `mavlink::common::MavMessage` type
 #[cfg(feature = "std")]
-pub fn heartbeat_message() -> mavlink::mavlink::common::MavMessage {
-    mavlink::mavlink::common::MavMessage::Heartbeat(mavlink::proto::common::Heartbeat {
+pub fn heartbeat_message() -> mavlink::common::MavMessage {
+    mavlink::common::MavMessage::Heartbeat(proto::common::Heartbeat {
         custom_mode: 0,
-        r#type: mavlink::proto::common::MavType::Quadrotor as i32,
-        autopilot: mavlink::proto::common::MavAutopilot::Ardupilotmega as i32,
-        base_mode: mavlink::proto::common::MavModeFlag::Undefined as i32,
-        system_status: mavlink::proto::common::MavState::Standby as i32,
+        r#type: proto::common::MavType::Quadrotor as i32,
+        autopilot: proto::common::MavAutopilot::Ardupilotmega as i32,
+        base_mode: proto::common::MavModeFlag::Undefined as i32,
+        system_status: proto::common::MavState::Standby as i32,
         mavlink_version: 0x3,
     })
 }
 
 /// Create a message requesting the parameters list
 #[cfg(feature = "std")]
-pub fn request_parameters() -> mavlink::mavlink::common::MavMessage {
-    mavlink::mavlink::common::MavMessage::ParamRequestList(
-        mavlink::proto::common::ParamRequestList {
-            target_system: 0,
-            target_component: 0,
-        },
-    )
+pub fn request_parameters() -> mavlink::common::MavMessage {
+    mavlink::common::MavMessage::ParamRequestList(proto::common::ParamRequestList {
+        target_system: 0,
+        target_component: 0,
+    })
 }
 
 /// Create a message enabling data streaming
 #[cfg(feature = "std")]
-pub fn request_stream() -> mavlink::mavlink::common::MavMessage {
-    mavlink::mavlink::common::MavMessage::RequestDataStream(
-        mavlink::proto::common::RequestDataStream {
-            target_system: 0,
-            target_component: 0,
-            req_stream_id: 0,
-            req_message_rate: 10,
-            start_stop: 1,
-        },
-    )
+pub fn request_stream() -> mavlink::common::MavMessage {
+    mavlink::common::MavMessage::RequestDataStream(proto::common::RequestDataStream {
+        target_system: 0,
+        target_component: 0,
+        req_stream_id: 0,
+        req_message_rate: 10,
+        start_stop: 1,
+    })
 }
