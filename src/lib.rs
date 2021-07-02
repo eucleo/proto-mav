@@ -71,7 +71,7 @@ where
 {
     fn message_id(&self) -> u32;
     fn message_name(&self) -> &'static str;
-    fn ser(&self) -> Vec<u8>;
+    fn mavlink_ser(&self) -> Vec<u8>;
 
     fn parse(
         version: MavlinkVersion,
@@ -161,7 +161,7 @@ impl<M: Message> MavFrame<M> {
         }
 
         // serialize message
-        v.append(&mut self.msg.ser());
+        v.append(&mut self.msg.mavlink_ser());
 
         v
     }
@@ -367,7 +367,7 @@ pub fn write_v2_msg<M: Message, W: Write>(
     data: &M,
 ) -> Result<(), error::MessageWriteError> {
     let msgid = data.message_id();
-    let payload = data.ser();
+    let payload = data.mavlink_ser();
     //    println!("write payload_len : {}", payload.len());
 
     let header = &[
@@ -409,7 +409,7 @@ pub fn write_v1_msg<M: Message, W: Write>(
     data: &M,
 ) -> Result<(), error::MessageWriteError> {
     let msgid = data.message_id();
-    let payload = data.ser();
+    let payload = data.mavlink_ser();
 
     let header = &[
         MAV_STX,

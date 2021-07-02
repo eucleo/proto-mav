@@ -1,20 +1,19 @@
-extern crate mavlink;
-
 #[cfg(test)]
 #[cfg(all(feature = "std", feature = "common"))]
 mod helper_tests {
-    use crate::mavlink::{common::MavMessage, Message};
+    use ::mavlink::mavlink::common::MavMessage;
+    use ::mavlink::Message;
 
     #[test]
     fn test_get_default_message_from_id() {
-        let message_name = "PING";
+        let message_name = "Ping";
         let id: std::result::Result<u32, &'static str> =
             MavMessage::message_id_from_name(message_name);
         let id = id.unwrap();
-        assert!(id == 4, "Invalid id for message name: PING");
+        assert!(id == 4, "Invalid id for message name: Ping");
         let message = MavMessage::default_message_from_id(id);
         match message {
-            Ok(MavMessage::PING(_)) => {}
+            Ok(MavMessage::Ping(_)) => {}
             _ => unreachable!("Invalid message type."),
         }
         assert!(

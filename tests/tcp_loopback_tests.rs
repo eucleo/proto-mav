@@ -1,10 +1,9 @@
-extern crate mavlink;
-
 mod test_shared;
 
 #[cfg(test)]
 #[cfg(all(feature = "std", feature = "tcp", feature = "common"))]
 mod test_tcp_connections {
+    use ::mavlink::*;
     use std::thread;
 
     /// Test whether we can send a message via TCP and receive it OK
@@ -14,14 +13,14 @@ mod test_tcp_connections {
 
         let server_thread = thread::spawn(move || {
             //TODO consider using get_available_port to use a random port
-            let server = mavlink::connect("tcpin:0.0.0.0:14550").expect("Couldn't create server");
+            let server = connect("tcpin:0.0.0.0:14550").expect("Couldn't create server");
 
             let mut recv_count = 0;
             for _i in 0..RECEIVE_CHECK_COUNT {
                 match server.recv() {
                     Ok((_header, msg)) => {
                         match msg {
-                            mavlink::common::MavMessage::HEARTBEAT(_heartbeat_msg) => {
+                            mavlink::common::MavMessage::Heartbeat(_heartbeat_msg) => {
                                 recv_count += 1;
                             }
                             _ => {
@@ -45,9 +44,8 @@ mod test_tcp_connections {
         // have the client send a few hearbeats
         thread::spawn(move || {
             let msg =
-                mavlink::common::MavMessage::HEARTBEAT(crate::test_shared::get_heartbeat_msg());
-            let client =
-                mavlink::connect("tcpout:127.0.0.1:14550").expect("Couldn't create client");
+                mavlink::common::MavMessage::Heartbeat(crate::test_shared::get_heartbeat_msg());
+            let client = connect("tcpout:127.0.0.1:14550").expect("Couldn't create client");
             for _i in 0..RECEIVE_CHECK_COUNT {
                 client.send_default(&msg).ok();
             }

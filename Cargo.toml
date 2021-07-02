@@ -18,6 +18,7 @@ quote = "0.3"
 lazy_static = "1.2.0"
 serde = { version = "1.0.101", optional = true, features = ["derive"] }
 prost-build = "0.7"
+heck = "0.3"
 
 [[bin]]
 name = "mavlink-dump"
@@ -37,7 +38,7 @@ nb = { version = "0.1", optional = true }
 
 prost = "0.7"
 # Only necessary if using Protobuf well-known types:
-prost-types = "0.7"
+#prost-types = "0.7"
 
 [features]
 "localtest" = ["common"]

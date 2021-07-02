@@ -128,6 +128,7 @@ pub fn main() {
     let proto_out = format!("{}/src/proto", out_dir);
     prost_build::Config::new()
         .out_dir(proto_out)
+        //        .compile_well_known_types()
         .compile_protos(&protos, &[out_dir.clone()])
         .unwrap();
 

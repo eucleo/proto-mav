@@ -1,29 +1,31 @@
-extern crate mavlink;
+use ::mavlink::*;
 
-pub const COMMON_MSG_HEADER: mavlink::MavHeader = mavlink::MavHeader {
+#[allow(dead_code)]
+pub const COMMON_MSG_HEADER: MavHeader = MavHeader {
     sequence: 239,
     system_id: 1,
     component_id: 1,
 };
 
 #[cfg(feature = "common")]
-pub fn get_heartbeat_msg() -> mavlink::common::HEARTBEAT_DATA {
-    mavlink::common::HEARTBEAT_DATA {
+pub fn get_heartbeat_msg() -> proto::common::Heartbeat {
+    proto::common::Heartbeat {
         custom_mode: 5,
-        mavtype: mavlink::common::MavType::MAV_TYPE_QUADROTOR,
-        autopilot: mavlink::common::MavAutopilot::MAV_AUTOPILOT_ARDUPILOTMEGA,
-        base_mode: mavlink::common::MavModeFlag::MAV_MODE_FLAG_MANUAL_INPUT_ENABLED
-            | mavlink::common::MavModeFlag::MAV_MODE_FLAG_STABILIZE_ENABLED
-            | mavlink::common::MavModeFlag::MAV_MODE_FLAG_GUIDED_ENABLED
-            | mavlink::common::MavModeFlag::MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
-        system_status: mavlink::common::MavState::MAV_STATE_STANDBY,
+        r#type: proto::common::MavType::Quadrotor as i32,
+        autopilot: proto::common::MavAutopilot::Ardupilotmega as i32,
+        base_mode: proto::common::MavModeFlag::ManualInputEnabled as i32
+            | proto::common::MavModeFlag::StabilizeEnabled as i32
+            | proto::common::MavModeFlag::GuidedEnabled as i32
+            | proto::common::MavModeFlag::CustomModeEnabled as i32,
+        system_status: proto::common::MavState::Standby as i32,
         mavlink_version: 3,
     }
 }
 
+#[allow(dead_code)]
 #[cfg(feature = "common")]
-pub fn get_cmd_nav_takeoff_msg() -> mavlink::common::COMMAND_INT_DATA {
-    mavlink::common::COMMAND_INT_DATA {
+pub fn get_cmd_nav_takeoff_msg() -> proto::common::CommandInt {
+    proto::common::CommandInt {
         param1: 1.0,
         param2: 2.0,
         param3: 3.0,
@@ -31,72 +33,76 @@ pub fn get_cmd_nav_takeoff_msg() -> mavlink::common::COMMAND_INT_DATA {
         x: 555,
         y: 666,
         z: 777.0,
-        command: mavlink::common::MavCmd::MAV_CMD_NAV_TAKEOFF,
+        command: proto::common::MavCmd::NavTakeoff as i32,
         target_system: 42,
         target_component: 84,
-        frame: mavlink::common::MavFrame::MAV_FRAME_GLOBAL,
+        frame: proto::common::MavFrame::Global as i32,
         current: 73,
         autocontinue: 17,
     }
 }
 
+#[allow(dead_code)]
 #[cfg(feature = "common")]
-pub fn get_hil_actuator_controls_msg() -> mavlink::common::HIL_ACTUATOR_CONTROLS_DATA {
-    mavlink::common::HIL_ACTUATOR_CONTROLS_DATA {
+pub fn get_hil_actuator_controls_msg() -> proto::common::HilActuatorControls {
+    proto::common::HilActuatorControls {
         time_usec: 1234567 as u64,
         flags: 0 as u64,
-        controls: [
+        controls: vec![
             0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0,
         ],
-        mode: mavlink::common::MavModeFlag::MAV_MODE_FLAG_MANUAL_INPUT_ENABLED
-            | mavlink::common::MavModeFlag::MAV_MODE_FLAG_STABILIZE_ENABLED
-            | mavlink::common::MavModeFlag::MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+        mode: proto::common::MavModeFlag::ManualInputEnabled as i32
+            | proto::common::MavModeFlag::StabilizeEnabled as i32
+            | proto::common::MavModeFlag::CustomModeEnabled as i32,
     }
 }
 
+#[allow(dead_code)]
 #[cfg(all(feature = "common", not(feature = "emit-extensions")))]
-pub fn get_servo_output_raw_v1() -> mavlink::common::SERVO_OUTPUT_RAW_DATA {
-    mavlink::common::SERVO_OUTPUT_RAW_DATA {
+pub fn get_servo_output_raw_v1() -> proto::common::ServoOutputRaw {
+    proto::common::ServoOutputRaw {
         time_usec: 1234567 as u32,
-        servo1_raw: 1100 as u16,
-        servo2_raw: 1200 as u16,
-        servo3_raw: 1300 as u16,
-        servo4_raw: 1400 as u16,
-        servo5_raw: 1500 as u16,
-        servo6_raw: 1600 as u16,
-        servo7_raw: 1700 as u16,
-        servo8_raw: 1800 as u16,
-        port: 123 as u8,
+        servo1_raw: 1100 as u32,
+        servo2_raw: 1200 as u32,
+        servo3_raw: 1300 as u32,
+        servo4_raw: 1400 as u32,
+        servo5_raw: 1500 as u32,
+        servo6_raw: 1600 as u32,
+        servo7_raw: 1700 as u32,
+        servo8_raw: 1800 as u32,
+        port: 123 as u32,
     }
 }
 
+#[allow(dead_code)]
 #[cfg(all(feature = "common", feature = "emit-extensions"))]
-pub fn get_servo_output_raw_v2() -> mavlink::common::SERVO_OUTPUT_RAW_DATA {
-    mavlink::common::SERVO_OUTPUT_RAW_DATA {
+pub fn get_servo_output_raw_v2() -> proto::common::ServoOutputRaw {
+    proto::common::ServoOutputRaw {
         time_usec: 1234567 as u32,
-        servo1_raw: 1100 as u16,
-        servo2_raw: 1200 as u16,
-        servo3_raw: 1300 as u16,
-        servo4_raw: 1400 as u16,
-        servo5_raw: 1500 as u16,
-        servo6_raw: 1600 as u16,
-        servo7_raw: 1700 as u16,
-        servo8_raw: 1800 as u16,
-        port: 123 as u8,
-        servo9_raw: 1110 as u16,
-        servo10_raw: 1220 as u16,
-        servo11_raw: 1330 as u16,
-        servo12_raw: 1440 as u16,
-        servo13_raw: 1550 as u16,
-        servo14_raw: 1660 as u16,
-        servo15_raw: 1770 as u16,
-        servo16_raw: 1880 as u16,
+        servo1_raw: 1100 as u32,
+        servo2_raw: 1200 as u32,
+        servo3_raw: 1300 as u32,
+        servo4_raw: 1400 as u32,
+        servo5_raw: 1500 as u32,
+        servo6_raw: 1600 as u32,
+        servo7_raw: 1700 as u32,
+        servo8_raw: 1800 as u32,
+        port: 123 as u32,
+        servo9_raw: 1110 as u32,
+        servo10_raw: 1220 as u32,
+        servo11_raw: 1330 as u32,
+        servo12_raw: 1440 as u32,
+        servo13_raw: 1550 as u32,
+        servo14_raw: 1660 as u32,
+        servo15_raw: 1770 as u32,
+        servo16_raw: 1880 as u32,
     }
 }
 
+#[allow(dead_code)]
 #[cfg(all(feature = "ardupilotmega", feature = "uavionix", feature = "icarous"))]
-pub fn get_apm_mount_status() -> mavlink::ardupilotmega::MOUNT_STATUS_DATA {
-    mavlink::ardupilotmega::MOUNT_STATUS_DATA {
+pub fn get_apm_mount_status() -> proto::ardupilotmega::MountStatus {
+    proto::ardupilotmega::MountStatus {
         pointing_a: 3,
         pointing_b: 4,
         pointing_c: 5,

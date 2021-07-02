@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::u32;
 
+use heck::{CamelCase, SnakeCase};
 use xml::reader::{EventReader, XmlEvent};
 
 use crate::util::to_module_name;
@@ -301,16 +302,39 @@ fn is_valid_parent(p: Option<MavXmlElement>, s: MavXmlElement) -> bool {
     }
 }
 
+pub fn snake_name(name: &str) -> String {
+    let mut ident = name.to_snake_case();
+
+    // Use a raw identifier if the identifier matches a Rust keyword:
+    // https://doc.rust-lang.org/reference/keywords.html.
+    match ident.as_str() {
+        // 2015 strict keywords.
+        | "as" | "break" | "const" | "continue" | "else" | "enum" | "false"
+        | "fn" | "for" | "if" | "impl" | "in" | "let" | "loop" | "match" | "mod" | "move" | "mut"
+        | "pub" | "ref" | "return" | "static" | "struct" | "trait" | "true"
+        | "type" | "unsafe" | "use" | "where" | "while"
+        // 2018 strict keywords.
+        | "dyn"
+        // 2015 reserved keywords.
+        | "abstract" | "become" | "box" | "do" | "final" | "macro" | "override" | "priv" | "typeof"
+        | "unsized" | "virtual" | "yield"
+        // 2018 reserved keywords.
+        | "async" | "await" | "try" => ident.insert_str(0, "r#"),
+        // the following keywords are not supported as raw identifiers and are therefore suffixed with an underscore.
+        "self" | "super" | "extern" | "crate" => ident += "_",
+        _ => (),
+    }
+    ident
+}
+
 pub fn rusty_name(name: &str) -> String {
-    name.split('_')
-        .map(|x| x.to_lowercase())
-        .map(|x| {
-            let mut v: Vec<char> = x.chars().collect();
-            v[0] = v[0].to_uppercase().next().unwrap();
-            v.into_iter().collect()
-        })
-        .collect::<Vec<String>>()
-        .join("")
+    let mut ident = name.to_camel_case();
+
+    // Suffix an underscore for the `Self` Rust keyword as it is not allowed as raw identifier.
+    if ident == "Self" {
+        ident += "_";
+    }
+    ident
 }
 
 pub fn parse_profile(file: &mut dyn Read) -> MavProfile {
@@ -442,10 +466,7 @@ pub fn parse_profile(file: &mut dyn Read) -> MavProfile {
                             match attr.name.local_name.clone().as_ref() {
                                 "name" => {
                                     field.raw_name = attr.value.clone();
-                                    field.name = attr.value.to_lowercase();
-                                    if field.name == "type" {
-                                        field.name = "mavtype".to_string();
-                                    }
+                                    field.name = snake_name(&attr.value);
                                 }
                                 "type" => {
                                     field.mavtype = MavType::parse_type(&attr.value).unwrap();
@@ -649,7 +670,7 @@ pub fn generate(
         .unwrap();
 
     // rust file
-    let rust_tokens = profile.emit_rust();
+    let rust_tokens = profile.emit_rust(&module_name);
     writeln!(&outf, "{}", rust_tokens).unwrap();
     match Command::new("rustfmt")
         .arg(dest_path.as_os_str())

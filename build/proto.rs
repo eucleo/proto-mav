@@ -151,9 +151,14 @@ impl MavField {
         }
         if let Some(enum_type) = &self.enumtype {
             let raw_type = self.raw_enumtype.as_ref().unwrap();
+            let rep = if self.mavtype.is_array() {
+                "repeated ".to_string()
+            } else {
+                "".to_string()
+            };
             // Got an enum, figure out if it is our enum or from an import.
             if has_enum(&profile.enums, enum_type) {
-                writeln!(outf, "  {} {} = {};", raw_type, self.raw_name, id)?;
+                writeln!(outf, "  {}{} {} = {};", rep, raw_type, self.raw_name, id)?;
             } else {
                 let mut found = false;
                 for inc in &profile.includes {
@@ -163,8 +168,8 @@ impl MavField {
                         let inc_mod = to_module_name(&inc);
                         writeln!(
                             outf,
-                            "  {}.{} {} = {};",
-                            inc_mod, raw_type, self.raw_name, id
+                            "  {}{}.{} {} = {};",
+                            rep, inc_mod, raw_type, self.raw_name, id
                         )?;
                         break;
                     }
@@ -197,7 +202,7 @@ impl MavType {
         // XXX protobuf seems to not have anything less then 32 bits...
         match self.clone() {
             UInt8 | UInt8MavlinkVersion => "uint32".into(),
-            Int8 => "uint32".into(),
+            Int8 => "int32".into(),
             Char => "uint32".into(), // XXX should this be string?
             UInt16 => "uint32".into(),
             Int16 => "int32".into(),
@@ -216,5 +221,9 @@ impl MavType {
                 }
             }
         }
+    }
+
+    fn is_array(&self) -> bool {
+        matches!(self, MavType::Array(_, _))
     }
 }

@@ -79,12 +79,12 @@ fn main() {
 /// and the function could return only a simple `mavlink::common::MavMessage` type
 #[cfg(feature = "std")]
 pub fn heartbeat_message() -> mavlink::mavlink::common::MavMessage {
-    mavlink::mavlink::common::MavMessage::Heartbeat(mavlink::mavlink::common::Heartbeat {
+    mavlink::mavlink::common::MavMessage::Heartbeat(mavlink::proto::common::Heartbeat {
         custom_mode: 0,
-        mavtype: mavlink::mavlink::common::MavType::Quadrotor,
-        autopilot: mavlink::mavlink::common::MavAutopilot::Ardupilotmega,
-        base_mode: mavlink::mavlink::common::MavModeFlag::empty(),
-        system_status: mavlink::mavlink::common::MavState::Standby,
+        r#type: mavlink::proto::common::MavType::Quadrotor as i32,
+        autopilot: mavlink::proto::common::MavAutopilot::Ardupilotmega as i32,
+        base_mode: mavlink::proto::common::MavModeFlag::Undefined as i32,
+        system_status: mavlink::proto::common::MavState::Standby as i32,
         mavlink_version: 0x3,
     })
 }
@@ -93,7 +93,7 @@ pub fn heartbeat_message() -> mavlink::mavlink::common::MavMessage {
 #[cfg(feature = "std")]
 pub fn request_parameters() -> mavlink::mavlink::common::MavMessage {
     mavlink::mavlink::common::MavMessage::ParamRequestList(
-        mavlink::mavlink::common::ParamRequestList {
+        mavlink::proto::common::ParamRequestList {
             target_system: 0,
             target_component: 0,
         },
@@ -104,7 +104,7 @@ pub fn request_parameters() -> mavlink::mavlink::common::MavMessage {
 #[cfg(feature = "std")]
 pub fn request_stream() -> mavlink::mavlink::common::MavMessage {
     mavlink::mavlink::common::MavMessage::RequestDataStream(
-        mavlink::mavlink::common::RequestDataStream {
+        mavlink::proto::common::RequestDataStream {
             target_system: 0,
             target_component: 0,
             req_stream_id: 0,
