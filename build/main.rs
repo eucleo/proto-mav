@@ -14,6 +14,7 @@ use crate::util::to_module_name;
 use std::collections::HashMap;
 use std::env;
 use std::fs::{read_dir, File};
+use std::io::Write;
 use std::path::Path;
 use std::process::Command;
 
@@ -121,6 +122,35 @@ pub fn main() {
         }
     }
 
+    {
+        let dest_path = Path::new(&out_dir).join("mav.proto");
+        let mut outf = File::create(&dest_path).unwrap();
+        let opts = r#"
+syntax = "proto3";
+
+package mav;
+
+import "google/protobuf/descriptor.proto";
+
+message MavFieldOptions {
+  optional string type = 1;
+  optional string enum = 2;
+  optional string display = 3;
+}
+
+message MavMesOptions {
+  optional int32 id = 1;
+}
+
+extend google.protobuf.FieldOptions {
+  optional MavFieldOptions opts = 60066;
+}
+extend google.protobuf.MessageOptions {
+  optional MavMesOptions message = 60066;
+}
+"#;
+        outf.write_all(opts.as_bytes()).unwrap();
+    }
     let mut protos = Vec::new();
     for module in &modules {
         protos.push(format!("{}/{}.proto", out_dir, module));

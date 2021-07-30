@@ -14,6 +14,7 @@ impl MavProfile {
         profile: &MavProfile,
         modules: &mut HashMap<String, MavProfile>,
     ) -> io::Result<()> {
+        writeln!(outf, "import \"mav.proto\";\n")?;
         for inc in &self.includes {
             let inc_name = to_module_name(&inc);
             let mut inc_proto = PathBuf::from(&inc_name);
@@ -120,6 +121,7 @@ impl MavMessage {
             "message {} {{  // MavLink id: {}",
             self.raw_name, self.id
         )?;
+        writeln!(outf, "  option (mav.message).id = {};", self.id)?;
         for (i, field) in self.fields.iter().enumerate() {
             field.emit_proto(outf, i + 1, profile, modules)?;
         }
@@ -149,6 +151,7 @@ impl MavField {
                 writeln!(outf, "  // {}", d.trim())?;
             }
         }
+        let mut extras = String::new();
         if let Some(enum_type) = &self.enumtype {
             let raw_type = self.raw_enumtype.as_ref().unwrap();
             let rep = if self.mavtype.is_array() {
@@ -158,7 +161,8 @@ impl MavField {
             };
             // Got an enum, figure out if it is our enum or from an import.
             if has_enum(&profile.enums, enum_type) {
-                writeln!(outf, "  {}{} {} = {};", rep, raw_type, self.raw_name, id)?;
+                write!(outf, "  {}{} {} = {}", rep, raw_type, self.raw_name, id)?;
+                extras.push_str(&format!(", enum: \"{}\"", raw_type));
             } else {
                 let mut found = false;
                 for inc in &profile.includes {
@@ -166,11 +170,12 @@ impl MavField {
                     if has_enum(&p.enums, enum_type) {
                         found = true;
                         let inc_mod = to_module_name(&inc);
-                        writeln!(
+                        write!(
                             outf,
-                            "  {}{}.{} {} = {};",
+                            "  {}{}.{} {} = {}",
                             rep, inc_mod, raw_type, self.raw_name, id
                         )?;
+                        extras.push_str(&format!(", enum: \"{}.{}\"", inc_mod, raw_type));
                         break;
                     }
                 }
@@ -182,14 +187,20 @@ impl MavField {
                 }
             }
         } else {
-            writeln!(
+            write!(
                 outf,
-                "  {} {} = {};",
+                "  {} {} = {}",
                 self.mavtype.proto_type(),
                 self.raw_name,
                 id
             )?;
         }
+        writeln!(
+            outf,
+            " [(mav.opts) = {{ type: \"{}\"{} }}];",
+            self.mavtype.mav_type(),
+            extras
+        )?;
         Ok(())
     }
 }

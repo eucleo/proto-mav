@@ -636,15 +636,14 @@ impl MavType {
                         #val = String::from_utf8_lossy(&s).into();
                     }
                 } else {
-                    // it is a vector
                     let r = t.rust_reader(Ident::from("let val"), buf, with_cast);
                     quote! {
-                            for _ in 0..#size {
-                                #r
-                    #[allow(clippy::useless_conversion)]
-                                #val.push(val.into());
-                            }
+                        for _ in 0..#size {
+                            #r
+                            #[allow(clippy::useless_conversion)]
+                            #val.push(val.into());
                         }
+                    }
                 }
             }
         }
