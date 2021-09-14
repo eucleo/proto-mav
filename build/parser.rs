@@ -39,7 +39,10 @@ impl MavProfile {
                             for mut enm in &mut self.enums {
                                 if enm.name == *enum_name {
                                     // this is the right enum
-                                    enm.bitfield = Some(field.mavtype.rust_type());
+                                    if enm.bitfield.is_none() {
+                                        //enm.bitfield = Some(field.mavtype.rust_type());
+                                        enm.bitfield = Some("u32".into());
+                                    }
                                 }
                             }
                         }
@@ -431,6 +434,9 @@ pub fn parse_profile(file: &mut dyn Read) -> MavProfile {
                             if attr.name.local_name == "name" {
                                 mavenum.raw_name = attr.value.clone();
                                 mavenum.name = rusty_name(&attr.value);
+                            }
+                            if attr.name.local_name == "bitmask" && attr.value == "true" {
+                                mavenum.bitfield = Some("u32".into());
                             }
                         }
                         Some(&MavXmlElement::Entry) => {

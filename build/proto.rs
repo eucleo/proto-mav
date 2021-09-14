@@ -41,6 +41,12 @@ impl MavEnum {
                 writeln!(outf, "// {}", d.trim())?;
             }
         }
+        if self.bitfield.is_some() {
+            writeln!(
+                outf,
+                "// This enum is used to define bitmasks (work around protobuf limitations)."
+            )?;
+        }
         let mut sorted = self.entries.clone();
         sorted.sort_by(|a, b| {
             if a.value.is_none() && b.value.is_none() {
@@ -138,14 +144,15 @@ impl MavField {
         profile: &MavProfile,
         modules: &mut HashMap<String, MavProfile>,
     ) -> io::Result<()> {
-        fn has_enum(enums: &[MavEnum], name: &str) -> bool {
+        fn has_enum(enums: &[MavEnum], name: &str) -> Option<MavEnum> {
             for e in enums {
                 if e.name == name {
-                    return true;
+                    return Some(e.clone());
                 }
             }
-            false
+            None
         }
+
         if let Some(description) = &self.description {
             for d in description.split('\n') {
                 writeln!(outf, "  // {}", d.trim())?;
@@ -160,22 +167,48 @@ impl MavField {
                 "".to_string()
             };
             // Got an enum, figure out if it is our enum or from an import.
-            if has_enum(&profile.enums, enum_type) {
-                write!(outf, "  {}{} {} = {}", rep, raw_type, self.raw_name, id)?;
+            if let Some(enm) = has_enum(&profile.enums, enum_type) {
                 extras.push_str(&format!(", enum: \"{}\"", raw_type));
+                if enm.bitfield.is_some() {
+                    writeln!(outf, "  // bitfield defined by enum {}", raw_type)?;
+                    write!(
+                        outf,
+                        "  {} {} = {}",
+                        self.mavtype.proto_type(),
+                        self.raw_name,
+                        id
+                    )?;
+                } else {
+                    write!(outf, "  {}{} {} = {}", rep, raw_type, self.raw_name, id)?;
+                }
             } else {
                 let mut found = false;
                 for inc in &profile.includes {
                     let p = modules.get(inc).unwrap();
-                    if has_enum(&p.enums, enum_type) {
+                    if let Some(enm) = has_enum(&p.enums, enum_type) {
                         found = true;
                         let inc_mod = to_module_name(&inc);
-                        write!(
-                            outf,
-                            "  {}{}.{} {} = {}",
-                            rep, inc_mod, raw_type, self.raw_name, id
-                        )?;
                         extras.push_str(&format!(", enum: \"{}.{}\"", inc_mod, raw_type));
+                        if enm.bitfield.is_some() {
+                            writeln!(
+                                outf,
+                                "  // bitfield defined by enum {}.{}",
+                                inc_mod, raw_type
+                            )?;
+                            write!(
+                                outf,
+                                "  {} {} = {}",
+                                self.mavtype.proto_type(),
+                                self.raw_name,
+                                id
+                            )?;
+                        } else {
+                            write!(
+                                outf,
+                                "  {}{}.{} {} = {}",
+                                rep, inc_mod, raw_type, self.raw_name, id
+                            )?;
+                        }
                         break;
                     }
                 }

@@ -82,7 +82,7 @@ pub fn heartbeat_message() -> mavlink::common::MavMessage {
         custom_mode: 0,
         r#type: proto::common::MavType::Quadrotor as i32,
         autopilot: proto::common::MavAutopilot::Ardupilotmega as i32,
-        base_mode: proto::common::MavModeFlag::Undefined as i32,
+        base_mode: proto::common::MavModeFlag::Undefined as u32,
         system_status: proto::common::MavState::Standby as i32,
         mavlink_version: 0x3,
     })
