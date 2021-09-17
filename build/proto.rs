@@ -41,12 +41,15 @@ impl MavEnum {
                 writeln!(outf, "// {}", d.trim())?;
             }
         }
-        if self.bitfield.is_some() {
+        let bits = if self.bitfield.is_some() {
             writeln!(
                 outf,
                 "// This enum is used to define bitmasks (work around protobuf limitations)."
             )?;
-        }
+            true
+        } else {
+            false
+        };
         let mut sorted = self.entries.clone();
         sorted.sort_by(|a, b| {
             if a.value.is_none() && b.value.is_none() {
@@ -77,6 +80,7 @@ impl MavEnum {
                 }
             }
         }
+        let mut comment_field = false;
         for (i, field) in sorted.iter().enumerate() {
             if i == 0 && !has_zero && max_val != 0 {
                 // Do not have a 0 based enum field but protbuf requires it.
@@ -91,12 +95,42 @@ impl MavEnum {
                     writeln!(outf, "  // {}", d)?;
                 }
             }
-            writeln!(
-                outf,
-                "  {} = {};",
-                field.raw_name,
-                field.value.unwrap_or(max_val + i as u32)
-            )?;
+            if bits {
+                let mut v: u32 = field.value.expect("No value for a bitfield!");
+                let mut i = 1;
+                let mut found = false;
+                while v > 0 && i <= 32 && !found {
+                    if (v >> (i - 1)) == 1 {
+                        v = i;
+                        found = true;
+                    }
+                    i += 1;
+                }
+                if !found && v != 0 {
+                    return Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        "Invalid bitfield, not a power of 2.",
+                    ));
+                }
+                writeln!(outf, "  // bit {}", v)?;
+            }
+            let val = field.value.unwrap_or(max_val + i as u32);
+            if (val & 0x80000000) != 0 {
+                comment_field = true;
+            }
+            if comment_field {
+                println!(
+                    "WARNING: enum value to large for protobuf, {}.{}",
+                    self.raw_name, field.raw_name
+                );
+                writeln!(outf, "  // enum value to large for protobuf")?;
+                write!(outf, "  //")?;
+            }
+            if bits {
+                writeln!(outf, "  {} = {:#010x};", field.raw_name, val)?;
+            } else {
+                writeln!(outf, "  {} = {};", field.raw_name, val)?;
+            }
             if let Some(params) = &field.params {
                 writeln!(outf, "  // ***** START Params")?;
                 for p in params {

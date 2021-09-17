@@ -40,7 +40,6 @@ impl MavProfile {
                                 if enm.name == *enum_name {
                                     // this is the right enum
                                     if enm.bitfield.is_none() {
-                                        //enm.bitfield = Some(field.mavtype.rust_type());
                                         enm.bitfield = Some("u32".into());
                                     }
                                 }

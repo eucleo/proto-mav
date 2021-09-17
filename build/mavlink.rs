@@ -89,7 +89,7 @@ impl MavProfile {
         self.messages
             .iter()
             .map(|msg| {
-                let crc = Ident::from(extra_crc(&msg).to_string());
+                let crc = Ident::from(extra_crc(msg).to_string());
                 quote!(#crc)
             })
             .collect::<Vec<Tokens>>()
@@ -320,13 +320,10 @@ impl MavProfile {
             }
         });
 
-        let enum_names = enums
-            .iter()
-            .map(|enum_name| {
-                let name = Ident::from(format!("\"{}\"", enum_name));
-                quote!(#name)
-            })
-            .collect::<Vec<Tokens>>();
+        let enum_names = enums.iter().map(|enum_name| {
+            let name = Ident::from(format!("\"{}\"", enum_name));
+            quote!(#name)
+        });
 
         quote! {
             fn message_id_from_name(name: &str) -> Result<u32, &'static str> {

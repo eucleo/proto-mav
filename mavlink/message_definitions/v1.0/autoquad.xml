@@ -72,10 +72,7 @@
       <entry value="0x40000000" name="AQ_NAV_STATUS_RTH">
         <description>Automatic Return to Home is active</description>
       </entry>
-      <!--XXX- testing protobuf and this val is to damn big...<entry value="0x80000000" name="AQ_NAV_STATUS_FAILSAFE">
-        <description>System is in failsafe recovery mode</description>
-      </entry>-->
-      <entry value="0x11000000" name="AQ_NAV_STATUS_FAILSAFE">
+      <entry value="0x80000000" name="AQ_NAV_STATUS_FAILSAFE">
         <description>System is in failsafe recovery mode</description>
       </entry>
     </enum>
