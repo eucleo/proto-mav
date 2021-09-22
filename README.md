@@ -20,6 +20,10 @@ It's also possible to install the working example via `cargo` command line:
 ```sh
 cargo install mavlink
 ```
+To build all the protobufs you can run:
+```
+cargo build --bin mavlink-dump --features "all-dialects"
+```
 
 ### Community projects
 Check some projects built by the community:
