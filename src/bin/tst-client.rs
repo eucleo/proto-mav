@@ -1,29 +1,11 @@
 use proto_mav::{error::MessageReadError, *};
-#[cfg(feature = "std")]
-use std::env;
-#[cfg(feature = "std")]
 use std::sync::Arc;
-#[cfg(feature = "std")]
 use std::thread;
-#[cfg(feature = "std")]
 use std::time::Duration;
 
-#[cfg(not(feature = "std"))]
-fn main() {}
-
-#[cfg(feature = "std")]
 fn main() {
-    let args: Vec<_> = env::args().collect();
-
-    if args.len() < 2 {
-        println!(
-            "Usage: mavlink-dump (tcpout|tcpin|udpout|udpin|udpbcast|serial|file):(ip|dev|path):(port|baud)"
-        );
-        return;
-    }
-
     // It's possible to change the mavlink dialect to be used in the connect call
-    let mut mavconn = connect::<mavlink::ardupilotmega::MavMessage>(&args[1]).unwrap();
+    let mut mavconn = connect::<mavlink::common::MavMessage>("tcpout:127.0.0.1:9993").unwrap();
 
     // here as an example we force the protocol version to mavlink V1:
     // the default for this library is mavlink V2
@@ -31,23 +13,11 @@ fn main() {
 
     let vehicle = Arc::new(mavconn);
     vehicle
-        .send(&MavHeader::default(), &request_parameters().into())
+        .send(&MavHeader::default(), &request_parameters())
         .unwrap();
     vehicle
-        .send(&MavHeader::default(), &request_stream().into())
+        .send(&MavHeader::default(), &request_stream())
         .unwrap();
-
-    thread::spawn({
-        let vehicle = vehicle.clone();
-        move || loop {
-            let res = vehicle.send_default(&heartbeat_message().into());
-            if res.is_ok() {
-                thread::sleep(Duration::from_secs(1));
-            } else {
-                println!("send failed: {:?}", res);
-            }
-        }
-    });
 
     loop {
         match vehicle.recv() {
