@@ -72,6 +72,7 @@ where
     fn message_id(&self) -> u32;
     fn message_name(&self) -> &'static str;
     fn mavlink_ser(&self) -> Vec<u8>;
+    fn proto_encode(&self) -> Vec<u8>;
 
     fn parse(
         version: MavlinkVersion,

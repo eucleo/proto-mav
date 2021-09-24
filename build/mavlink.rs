@@ -119,6 +119,7 @@ impl MavProfile {
         let mav_message_default_from_id =
             self.emit_mav_message_default_from_id(&enum_names, &msg_ids, &includes, module_name);
         let mav_message_serialize = self.emit_mav_message_serialize(&enum_names, &includes);
+        let mav_message_proto_encode = self.emit_proto_message_serialize(&enum_names, &includes);
 
         quote! {
             #comment
@@ -135,6 +136,8 @@ impl MavProfile {
             use num_traits::ToPrimitive;
             #[allow(unused_imports)]
             use bitflags::bitflags;
+            #[allow(unused_imports)]
+            use prost::Message as ProstMessage;
 
             use crate::{Message, error::*};
             #[allow(unused_imports)]
@@ -163,6 +166,7 @@ impl MavProfile {
                 #mav_message_id_from_name
                 #mav_message_default_from_id
                 #mav_message_serialize
+                #mav_message_proto_encode
                 #mav_message_crc
             }
         }
@@ -388,6 +392,21 @@ impl MavProfile {
                 match *self {
                     #(MavMessage::#enums(ref body) => body.mavlink_ser(),)*
                     #(MavMessage::#includes(ref msg) => msg.mavlink_ser(),)*
+                }
+            }
+        }
+    }
+
+    fn emit_proto_message_serialize(&self, enums: &[Tokens], includes: &[Ident]) -> Tokens {
+        let includes = includes
+            .iter()
+            .map(|include| Ident::from(rusty_name(&include.to_string())));
+
+        quote! {
+            fn proto_encode(&self) -> Vec<u8> {
+                match *self {
+                    #(MavMessage::#enums(ref body) => body.encode_to_vec(),)*
+                    #(MavMessage::#includes(ref msg) => msg.proto_encode(),)*
                 }
             }
         }
