@@ -111,6 +111,8 @@ impl MavProfile {
         let mav_message_from_includes = self.emit_mav_message_from_includes(&includes);
         let mav_message_parse =
             self.emit_mav_message_parse(&enum_names, &struct_names, &msg_ids, &includes);
+        let mav_message_proto_parse =
+            self.emit_mav_message_proto_parse(&enum_names, &struct_names, &msg_ids, &includes);
         let mav_message_crc = self.emit_mav_message_crc(&id_width, &msg_ids, &msg_crc, &includes);
         let mav_message_name = self.emit_mav_message_name(&enum_names, &includes);
         let mav_message_id = self.emit_mav_message_id(&enum_names, &msg_ids, &includes);
@@ -123,7 +125,7 @@ impl MavProfile {
 
         quote! {
             #comment
-            use crate::MavlinkVersion;
+            use proto_mav_comm::MavlinkVersion;
             #[allow(unused_imports)]
             use bytes::{Buf, BufMut, Bytes, BytesMut};
             #[allow(unused_imports)]
@@ -139,18 +141,12 @@ impl MavProfile {
             #[allow(unused_imports)]
             use prost::Message as ProstMessage;
 
-            use crate::{Message, error::*};
+            use proto_mav_comm::{Message, error::*};
             #[allow(unused_imports)]
             use crate::{#(mavlink::#includes::*),*};
 
             //#[cfg(feature = "serde")]
             //use serde::{Serialize, Deserialize};
-
-            #[cfg(not(feature = "std"))]
-            use alloc::vec::Vec;
-
-            #[cfg(not(feature = "std"))]
-            use alloc::string::ToString;
 
             #(#msgs)*
 
@@ -161,6 +157,7 @@ impl MavProfile {
 
             impl Message for MavMessage {
                 #mav_message_parse
+                #mav_message_proto_parse
                 #mav_message_name
                 #mav_message_id
                 #mav_message_id_from_name
@@ -231,6 +228,39 @@ impl MavProfile {
             fn parse(version: MavlinkVersion, id: #id_width, payload: &[u8]) -> Result<MavMessage, ParserError> {
                 match id {
                     #(#ids => #structs::mavlink_deser(version, payload).map(MavMessage::#enums),)*
+                    _ => {
+                        #(#includes_branches)*
+                        Err(ParserError::UnknownMessage { id })
+                    },
+                }
+            }
+        }
+    }
+
+    fn emit_mav_message_proto_parse(
+        &self,
+        enums: &[Tokens],
+        structs: &[Tokens],
+        ids: &[Tokens],
+        includes: &[Ident],
+    ) -> Tokens {
+        let id_width = Ident::from("u32");
+
+        // try parsing all included message variants if it doesn't land in the id
+        // range for this message
+        let includes_branches = includes.iter().map(|include| {
+            let include_rusty = Ident::from(rusty_name(&include.to_string()));
+            quote! {
+                if let Ok(msg) = crate::mavlink::#include::MavMessage::proto_parse(id, payload) {
+                    return Ok(MavMessage::#include_rusty(msg))
+                }
+            }
+        });
+
+        quote! {
+            fn proto_parse(id: #id_width, payload: &[u8]) -> Result<MavMessage, ParserError> {
+                match id {
+                    #(#ids => #structs::decode(payload).map(MavMessage::#enums).map_err(|error| ParserError::ProstDecode { error }),)*
                     _ => {
                         #(#includes_branches)*
                         Err(ParserError::UnknownMessage { id })

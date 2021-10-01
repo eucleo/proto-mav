@@ -20,25 +20,23 @@ serde = { version = "1.0.101", optional = true, features = ["derive"] }
 prost-build = "0.8"
 heck = "0.3"
 
-[[bin]]
-name = "mavlink-dump"
-required-features = ["ardupilotmega"]
+#[[bin]]
+#name = "mavlink-dump"
+#required-features = ["ardupilotmega"]
 
-[dependencies]
-crc-any = "2.3.5"
-bytes = { version = "1.0", default-features = false }
-num-traits = { version = "0.2", default-features = false }
-num-derive = "0.3.2"
-bitflags = "1.2.1"
-serial = { version = "0.4", optional = true }
-serde = { version = "1.0.115", optional = true }
-byteorder = { version = "1.3.4", default-features = false }
-embedded-hal = { version = "0.2", optional = true }
-nb = { version = "0.1", optional = true }
+#[dependencies]
+#crc-any = "2.3.5"
+#bytes = { version = "1.0", default-features = false }
+#num-traits = { version = "0.2", default-features = false }
+#num-derive = "0.3.2"
+#bitflags = "1.2.1"
+#serial = { version = "0.4", optional = true }
+#serde = { version = "1.0.115", optional = true }
+#byteorder = { version = "1.3.4", default-features = false }
+#embedded-hal = { version = "0.2", optional = true }
+#nb = { version = "0.1", optional = true }
 
-prost = "0.8"
-# Only necessary if using Protobuf well-known types:
-#prost-types = "0.8"
+#prost = "0.8"
 
 [features]
 "localtest" = ["common"]
@@ -75,16 +73,17 @@ prost = "0.8"
     "common",
 ]
 
-"emit-description" = []
-"emit-extensions" = []
-"std" = ["byteorder/std"]
-"udp" = []
-"tcp" = []
-"direct-serial" = []
-"embedded" = ["embedded-hal", "nb"]
-default= ["std", "tcp", "udp", "direct-serial", "serial", "serde", "common"]
+#"emit-description" = []
+#"emit-extensions" = []
+#"std" = ["byteorder/std"]
+#"udp" = []
+#"tcp" = []
+#"direct-serial" = []
+#"embedded" = ["embedded-hal", "nb"]
+#default= ["std", "tcp", "udp", "direct-serial", "serial", "serde", "common"]
+default= ["all-dialects"]
 
 # build with all features on docs.rs so that users viewing documentation
 # can see everything
-[package.metadata.docs.rs]
-features = ["default", "all-dialects"]
+#[package.metadata.docs.rs]
+#features = ["default", "all-dialects"]

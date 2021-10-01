@@ -672,7 +672,7 @@ pub fn generate(
     let outf = File::create(&dest_path).unwrap();
 
     let mut proto_outf = {
-        let dest_path = Path::new(&out_dir).join(definition_proto);
+        let dest_path = Path::new(&out_dir).join("protos").join(definition_proto);
         File::create(&dest_path).unwrap()
     };
 
