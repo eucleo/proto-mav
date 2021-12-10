@@ -1,34 +1,12 @@
-# rust-mavlink
+# proto-mav
 
-[![Build status](https://github.com/mavlink/rust-mavlink/actions/workflows/test.yml/badge.svg)](https://github.com/mavlink/rust-mavlink/actions/workflows/test.yml)
-[![Crate info](https://img.shields.io/crates/v/mavlink.svg)](https://crates.io/crates/mavlink)
-[![Documentation](https://docs.rs/mavlink/badge.svg)](https://docs.rs/mavlink)
+This is a HEAVILY hacked fork of https://github.com/mavlink/rust-mavlink
+It generates protobuf proto files from the mavlink files, the rust structs to
+go with them and then also generates code to (de)serialize the structs to/from
+mavlink as well as protobuf (using the same base structs).
 
-Rust implementation of the [MAVLink](http://qgroundcontrol.org/mavlink/start) UAV messaging protocol,
-with bindings for all message sets.
-
-Add to your Cargo.toml:
-
-```
-mavlink = "0.9"
-```
-
-## Examples
-See [src/bin/mavlink-dump.rs](src/bin/mavlink-dump.rs) for a usage example.
-
-It's also possible to install the working example via `cargo` command line:
-```sh
-cargo install mavlink
-```
-To build all the protobufs you can run:
-```
-cargo build --bin mavlink-dump --features "all-dialects"
-```
-
-### Community projects
-Check some projects built by the community:
-- [mavlink2rest](https://github.com/patrickelectric/mavlink2rest): A REST server that provides easy and friendly access to mavlink messages.
-- [mavlink-camera-manager](https://github.com/patrickelectric/mavlink-camera-manager): Extensible cross-platform camera server.
+Use or see the update.sh script for how to use it.  It is used to generate the
+proto-mav-gen repo to make it easier to use the code in other projects.
 
 ## License
 

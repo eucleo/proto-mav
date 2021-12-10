@@ -21,18 +21,6 @@ use std::process::Command;
 pub fn main() {
     let src_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
 
-    // Update and init submodule
-   /* match Command::new("git")
-        .arg("submodule")
-        .arg("update")
-        .arg("--init")
-        .current_dir(&src_dir)
-        .status()
-    {
-        Ok(_) => {}
-        Err(error) => eprintln!("{}", error),
-    }*/
-
     // find & apply patches to XML definitions to avoid crashes
     let mut patch_dir = src_dir.to_path_buf();
     patch_dir.push("build/patches");
@@ -87,11 +75,13 @@ pub fn main() {
     {
         let out_dir = Path::new(&out_dir).join("src");
         let dest_path = Path::new(&out_dir).join("lib.rs");
-        let mut outf = File::create(&dest_path).unwrap();
+        {
+            let mut outf = File::create(&dest_path).unwrap();
 
-        let src_modules = vec!["mavlink".to_string(), "proto".to_string()];
-        // generate code
-        binder::generate_bare(&src_modules, &mut outf);
+            let src_modules = vec!["mavlink".to_string(), "proto".to_string()];
+            // generate code
+            binder::generate_bare(&src_modules, &mut outf);
+        }
 
         // format code
         match Command::new("rustfmt")
@@ -108,10 +98,12 @@ pub fn main() {
     {
         let out_dir = Path::new(&out_dir).join("src").join("mavlink");
         let dest_path = Path::new(&out_dir).join("mod.rs");
-        let mut outf = File::create(&dest_path).unwrap();
+        {
+            let mut outf = File::create(&dest_path).unwrap();
 
-        // generate code
-        binder::generate(&modules, &mut outf);
+            // generate code
+            binder::generate(&modules, &mut outf);
+        }
 
         // format code
         match Command::new("rustfmt")
@@ -183,7 +175,7 @@ num-derive = "0.3.2"
 bitflags = "1.2.1"
 proto_mav_comm = { git="https://github.com/eucleo/proto-mav-comm.git" }
 serde = { version = "1" }
-prost = "0.8"
+prost = "0.9"
 "#;
         outf.write_all(opts.as_bytes()).unwrap();
     }
@@ -195,17 +187,19 @@ prost = "0.8"
         .out_dir(proto_out)
         //        .compile_well_known_types()
         .type_attribute(".", "#[derive(serde::Serialize, serde::Deserialize)]")
-        .compile_protos(&protos, &[protobufs_out.clone()])
+        .compile_protos(&protos, &[protobufs_out])
         .unwrap();
 
     // output mod.rs for proto
     {
         let out_dir = Path::new(&out_dir).join("src").join("proto");
         let dest_path = Path::new(&out_dir).join("mod.rs");
-        let mut outf = File::create(&dest_path).unwrap();
+        {
+            let mut outf = File::create(&dest_path).unwrap();
 
-        // generate code
-        binder::generate(&modules, &mut outf);
+            // generate code
+            binder::generate(&modules, &mut outf);
+        }
 
         // format code
         match Command::new("rustfmt")

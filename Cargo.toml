@@ -17,7 +17,7 @@ xml-rs = "0.2"
 quote = "0.3"
 lazy_static = "1.2.0"
 serde = { version = "1.0.101", optional = true, features = ["derive"] }
-prost-build = "0.8"
+prost-build = "0.9"
 heck = "0.3"
 
 #[[bin]]
